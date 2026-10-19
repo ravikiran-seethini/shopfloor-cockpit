@@ -1,0 +1,931 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1d2427">
+<meta name="description" content="Shopfloor Cockpit: digitale Schicht-, Stillstands- und OEE-Erfassung für die Fertigung.">
+<title>Shopfloor Cockpit</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<style>
+/* Layout: control-room tool. Dark steel header, tabbed workspace, big tap targets on the operator screen, status colours only for machine state. */
+:root{
+  --bg:#eef0f1; --surface:#fcfcfb; --sunk:#f3f4f4; --line:#d6dadc; --line-strong:#b9bfc2;
+  --ink:#121618; --ink-2:#4c5559; --ink-3:#6f787c;
+  --head:#1d2427; --head-ink:#eef1f2; --head-ink-2:#a8b2b6;
+  --accent:#1f6fb8; --accent-ink:#ffffff; --accent-soft:#dfeaf6;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
+  --bar:#3c4a52; --target:#5a6469;
+  --good:#0a7d0a; --good-bg:#dcf1dc; --bad:#c62f2f; --bad-bg:#f8dede; --warn:#9a6300; --warn-bg:#f8ecd2; --plan:#56606a; --plan-bg:#e6e9eb;
+  --f-ui:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --f-num:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#111517; --surface:#1a1f21; --sunk:#151a1c; --line:#2d3538; --line-strong:#3d474b;
+  --ink:#eef1f2; --ink-2:#b4bec2; --ink-3:#8c979b;
+  --head:#0b0e0f; --head-ink:#eef1f2; --head-ink-2:#8f9a9e;
+  --accent:#4a93dd; --accent-ink:#0b0e0f; --accent-soft:#1c2e40;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+  --bar:#9aa8ae; --target:#a9b4b8;
+  --good:#3fc43f; --good-bg:#16301a; --bad:#ef6a6a; --bad-bg:#3a1c1c; --warn:#f0b43c; --warn-bg:#3a2d12; --plan:#a7b1b6; --plan-bg:#262d30;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#111517; --surface:#1a1f21; --sunk:#151a1c; --line:#2d3538; --line-strong:#3d474b;
+  --ink:#eef1f2; --ink-2:#b4bec2; --ink-3:#8c979b;
+  --head:#0b0e0f; --head-ink:#eef1f2; --head-ink-2:#8f9a9e;
+  --accent:#4a93dd; --accent-ink:#0b0e0f; --accent-soft:#1c2e40;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+  --bar:#9aa8ae; --target:#a9b4b8;
+  --good:#3fc43f; --good-bg:#16301a; --bad:#ef6a6a; --bad-bg:#3a1c1c; --warn:#f0b43c; --warn-bg:#3a2d12; --plan:#a7b1b6; --plan-bg:#262d30;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:15px;line-height:1.45;margin:0}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.muted{color:var(--ink-2)} .small{font-size:.82rem}
+h1,h2,h3{margin:0;line-height:1.2;text-wrap:balance}
+h2{font-size:1.15rem;font-weight:700}
+h3{font-size:.95rem;font-weight:700}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* header */
+.top{background:var(--head);color:var(--head-ink);padding-inline:16px;padding-block:10px;display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;flex:1 1 220px}
+.logo{width:30px;height:30px;border-radius:6px;background:var(--accent);display:grid;place-items:center;flex:none}
+.logo svg{width:18px;height:18px}
+.brand b{font-size:1rem;letter-spacing:.02em;display:block}
+.brand span{font-size:.78rem;color:var(--head-ink-2);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lang{display:flex;border:1px solid #4a565b;border-radius:6px;overflow:hidden}
+.lang button{background:none;border:0;color:var(--head-ink-2);padding:5px 10px;cursor:pointer;font-size:.82rem;font-weight:700}
+.lang button[aria-pressed="true"]{background:var(--head-ink);color:var(--head)}
+nav.tabs{background:var(--surface);border-bottom:1px solid var(--line);display:flex;overflow-x:auto;padding-inline:8px;position:sticky;top:env(safe-area-inset-top,0px);z-index:4;scrollbar-width:none}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs button{background:none;border:0;border-bottom:3px solid transparent;padding:11px 12px 9px;cursor:pointer;color:var(--ink-2);font-weight:600;white-space:nowrap;font-size:.9rem}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+nav.tabs .dot{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--bad);color:#fff;font-size:.7rem;line-height:18px;margin-left:5px;text-align:center}
+
+main{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:16px 48px;display:flex;flex-direction:column;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px 16px;flex-wrap:wrap}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line-strong);background:var(--surface);border-radius:7px;padding:8px 14px;cursor:pointer;font-weight:600;font-size:.9rem;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--ink-3)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.sm{padding:5px 10px;font-size:.82rem}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600;color:var(--ink-2);min-width:0}
+input,select,textarea{background:var(--sunk);border:1px solid var(--line-strong);border-radius:7px;padding:8px 10px;width:100%;font-size:.95rem;font-weight:400;color:var(--ink)}
+textarea{min-height:70px;resize:vertical}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;flex-wrap:wrap}
+.seg button{background:var(--surface);border:0;border-right:1px solid var(--line);padding:7px 12px;cursor:pointer;font-weight:600;font-size:.85rem;color:var(--ink-2)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.pill.good{background:var(--good-bg);color:var(--good)} .pill.bad{background:var(--bad-bg);color:var(--bad)} .pill.warn{background:var(--warn-bg);color:var(--warn)} .pill.plan{background:var(--plan-bg);color:var(--plan)} .pill.info{background:var(--accent-soft);color:var(--accent)}
+.swatch{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none}
+.note{background:var(--accent-soft);border-radius:8px;padding:10px 12px;font-size:.88rem}
+.empty{color:var(--ink-3);font-size:.9rem;padding:8px 0}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th{text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--line-strong);white-space:nowrap}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.n,th.n{text-align:right}
+.tw{overflow-x:auto}
+
+/* operator */
+.mchips{display:flex;gap:8px;flex-wrap:wrap}
+.mchip{border:2px solid var(--line-strong);background:var(--surface);border-radius:10px;padding:8px 12px;cursor:pointer;text-align:left;min-width:120px;display:flex;flex-direction:column;gap:2px}
+.mchip b{font-size:.95rem} .mchip span{font-size:.75rem;font-weight:700}
+.mchip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.status{border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:6px;border:2px solid}
+.status.run{background:var(--good-bg);border-color:var(--good)} .status.stop{background:var(--bad-bg);border-color:var(--bad)} .status.idle{background:var(--plan-bg);border-color:var(--plan)}
+.status .big{font-size:1.9rem;font-weight:800;letter-spacing:.02em;display:flex;align-items:center;gap:10px}
+.status.run .big{color:var(--good)} .status.stop .big{color:var(--bad)} .status.idle .big{color:var(--plan)}
+.reasons{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.reasons button{min-height:58px;border:1px solid var(--line-strong);background:var(--surface);border-radius:9px;padding:8px 10px;font-weight:700;cursor:pointer;text-align:left;font-size:.9rem}
+.reasons button:hover{border-color:var(--accent)}
+.reasons button.planned{border-style:dashed;color:var(--ink-2)}
+.reasons button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.unexp{border:2px solid var(--bad);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--surface)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi .l{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:700}
+.kpi .v{font-size:1.6rem;font-weight:800;font-family:var(--f-num);font-variant-numeric:tabular-nums;line-height:1.15}
+.kpi .s{font-size:.78rem;color:var(--ink-2)}
+.kpi.hot{border-color:var(--bad)} .kpi.hot .v{color:var(--bad)}
+.feed{display:flex;flex-direction:column}
+.feed .it{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:.88rem;flex-wrap:wrap}
+.feed .it:last-child{border-bottom:0}
+.feed time{font-family:var(--f-num);color:var(--ink-3);font-size:.8rem;min-width:44px}
+.feed .grow{flex:1 1 160px;min-width:0}
+.toggle{display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600}
+.toggle input{width:auto;accent-color:var(--accent);transform:scale(1.25)}
+
+/* charts */
+.legend{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:.8rem;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.chart svg{width:100%;height:auto;display:block}
+.chart text{fill:var(--ink-2);font-size:11px;font-family:var(--f-ui)}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .axis{stroke:var(--line-strong);stroke-width:1}
+.chart .tgt{stroke:var(--target);stroke-width:1.5;stroke-dasharray:5 4}
+.hbars{display:flex;flex-direction:column;gap:8px}
+.hb{display:grid;grid-template-columns:minmax(110px,190px) 1fr auto;gap:10px;align-items:center;font-size:.85rem}
+.hb .lab{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hb .track{height:14px;background:var(--sunk);border-radius:0 4px 4px 0;position:relative;min-width:0}
+.hb .fill{height:100%;background:var(--bar);border-radius:0 4px 4px 0}
+.hb .val{font-family:var(--f-num);font-size:.8rem;color:var(--ink-2);white-space:nowrap;display:flex;gap:8px;align-items:center}
+.prog{height:8px;background:var(--sunk);border-radius:4px;overflow:hidden;min-width:70px}
+.prog i{display:block;height:100%;background:var(--bar);border-radius:0 4px 4px 0}
+
+/* qr + overlays */
+.labels{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.qlabel{border:2px solid var(--ink);border-radius:8px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:6px;background:#fff;color:#111}
+.qlabel .q{width:150px;height:150px}
+.qlabel .q img,.qlabel .q svg{width:150px;height:150px}
+.qlabel b{font-size:1.05rem} .qlabel small{font-size:.7rem;color:#444;word-break:break-all;text-align:center}
+.overlay{position:fixed;inset:0;background:rgba(5,8,10,.6);display:flex;align-items:flex-start;justify-content:center;padding:24px 16px calc(24px + env(safe-area-inset-bottom,0px));z-index:20;overflow:auto}
+.sheet{background:var(--surface);border-radius:12px;max-width:520px;width:100%;padding:16px;display:flex;flex-direction:column;gap:12px;border:1px solid var(--line)}
+.sheet video{width:100%;border-radius:8px;background:#000;max-height:60vh}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--head);color:var(--head-ink);padding:10px 16px;border-radius:8px;z-index:30;max-width:calc(100% - 32px);font-weight:600;font-size:.9rem}
+.confirm{border:1px solid var(--bad);background:var(--bad-bg);border-radius:8px;padding:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.diagram svg{width:100%;height:auto;display:block}
+.diagram text{font-family:var(--f-ui)}
+
+@media (max-width:560px){ .hb{grid-template-columns:1fr auto} .hb .track{grid-column:1 / -1;order:3} .status .big{font-size:1.5rem} }
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+@media print{ .top,nav.tabs,.noprint,.toast{display:none!important} body{background:#fff} main{padding:0} .card{border:0;padding:0} .labels{grid-template-columns:repeat(3,1fr)} }
+</style>
+
+<header class="top">
+  <div class="brand">
+    <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M4 18V9l5 3V9l5 3V6h6v12z"/></svg></div>
+    <div><b>Shopfloor Cockpit</b><span id="plantName"></span></div>
+  </div>
+  <div class="lang" role="group" aria-label="Sprache / Language">
+    <button id="lang-de" data-lang="de">DE</button><button id="lang-en" data-lang="en">EN</button>
+  </div>
+</header>
+<nav class="tabs" role="tablist" id="tabs"></nav>
+<main id="view"></main>
+<div id="overlay" class="overlay" hidden></div>
+<div id="toast" class="toast" hidden></div>
+
+<script src="lib/qrcode.js"></script>
+<script src="lib/jsQR.js"></script>
+<script src="lib/xlsx.mini.min.js"></script>
+<script>
+"use strict";
+/* ================= i18n ================= */
+const I18N = {
+de:{tabs:{op:'Maschine',dash:'Dashboard',shift:'Schichtbericht',act:'Maßnahmen',ord:'Aufträge',exp:'Export',con:'Systemanbindung',set:'Einrichtung'},
+ plantDefault:'Strangpresswerk (Demo)',
+ running:'LÄUFT',stopped:'STEHT',idle:'KEIN SIGNAL',since:'seit',source:'Quelle',srcMDE:'Maschinensignal (MDE)',srcBDE:'Manuell (BDE)',
+ order:'Auftrag',noOrder:'Kein Auftrag gewählt',changeOrder:'Auftrag wählen',scan:'QR-Code scannen',
+ simToggle:'Maschinensignal simulieren (MDE)',simHint:'Die Simulation ersetzt einen Sensor oder die SPS: Sie meldet Lauf/Stillstand und Stückzahlen selbst. Zuerst wird die laufende Schicht im Zeitraffer nachgefahren, danach läuft sie live im Demo-Takt (Zustände wechseln schneller als in der Realität).',
+ simCatch:'Zeitraffer: Schicht wird nachgefahren …',simLive:'Live (Demo-Takt)',
+ startStop:'Stillstand melden',endStop:'Maschine läuft wieder',pickReason:'Grund wählen',
+ unexplained:'Unbegründete Stillstände',unexpHint:'Die Maschine hat gestanden, aber niemand hat einen Grund erfasst. Bitte zuordnen:',assign:'Grund zuordnen',
+ qtyTitle:'Menge melden',good:'Gutmenge',scrap:'Ausschuss',scrapReason:'Ausschussgrund',book:'Buchen',booked:'Gebucht',
+ qtyHintMDE:'Gutmenge kommt automatisch vom Maschinenzähler. Hier nur Ausschuss melden.',
+ recent:'Letzte Buchungen (diese Schicht)',undo:'Löschen',thisShift:'Laufende Schicht',
+ oee:'OEE',avail:'Verfügbarkeit',perf:'Leistung',qual:'Qualität',downtime:'Stillstand',scrapRate:'Ausschussquote',pcs:'Stk',min:'min',h:'h',
+ openActions:'Offene Maßnahmen',unexpCount:'Unbegründete Stillstände',
+ today:'Heute',d7:'7 Tage',all:'Alle',machine:'Maschine',machines:'Maschinen',
+ oeeTrend:'OEE je Tag und Maschine',oeeShift:'OEE je Schicht und Maschine',target:'Ziel',
+ pareto:'Stillstandsgründe (ungeplant)',paretoSub:'Minuten, sortiert nach Verlust',addAction:'+ Maßnahme',
+ scrapBy:'Ausschuss nach Ursache',ordersProg:'Auftragsfortschritt (Soll/Ist)',
+ planned:'Soll',actual:'Ist',due:'Termin',status:'Status',material:'Material',
+ st_planned:'Geplant',st_running:'Läuft',st_done:'Fertig',st_late:'Verzug',
+ noData:'Keine Daten im gewählten Zeitraum.',
+ shiftF:'Früh',shiftS:'Spät',shiftN:'Nacht',date:'Datum',shift:'Schicht',
+ stopsList:'Stillstände',from:'von',to:'bis',duration:'Dauer',reason:'Grund',noReason:'— unbegründet —',
+ handover:'Übergabe an nächste Schicht',handoverText:'Übergabenotiz',author:'Name',save:'Speichern',
+ ackBy:'Übernommen von',ack:'Übernahme bestätigen',acked:'Übernommen',print:'Drucken / PDF',
+ actTitle:'Maßnahme',owner:'Verantwortlich',add:'Hinzufügen',st_open:'Offen',st_prog:'In Arbeit',st_closed:'Erledigt',overdue:'überfällig',
+ actPrefill:'Stillstände durch „{r}“ an {m} reduzieren',actEmpty:'Noch keine Maßnahmen.',
+ importTitle:'Aufträge aus ERP importieren',importHint:'Excel- oder CSV-Datei, z. B. ein SAP-Export der Fertigungsaufträge. Erkannte Spalten: Auftrag, Material, Menge, Maschine, Termin.',
+ importBtn:'Datei wählen',sample:'Beispieldatei herunterladen',imported:'{n} Aufträge importiert',importFail:'Keine passenden Spalten gefunden. Benötigt: Auftrag und Menge.',
+ newOrder:'Auftrag manuell anlegen',active:'Aktiv',setActive:'Aktiv setzen',
+ expTitle:'Daten exportieren',expHint:'Saubere Tabellen für Excel und Power BI. Jede Zeile ist ein Ereignis mit Zeitstempel, Maschine und Auftrag.',
+ expAll:'Excel-Datei (alle Tabellen)',expCsv:'Einzelne CSV-Dateien',backup:'Datensicherung (JSON)',restore:'Sicherung laden',
+ dlBlocked:'Downloads sind in der Vorschau gesperrt. In der installierten App funktionieren sie.',
+ rm:'Rückmeldung je Auftrag (an ERP)',rmHint:'Diese Tabelle entspricht der Rückmeldung, die ein MES an SAP schickt: Gutmenge, Ausschuss und Stillstandszeit je Auftrag.',
+ pbiTitle:'Power BI in 6 Schritten',
+ pbi:['Excel-Datei exportieren und in einem Ordner speichern (z. B. OneDrive).','Power BI Desktop öffnen → Daten abrufen → Excel-Arbeitsmappe → alle Tabellen auswählen → Laden.','Im Modell: Tabelle Maschinen mit Stillstaende, Mengen und OEE_Schicht über die Spalte Maschine verbinden; Auftraege mit Mengen über Auftrag.','Measure anlegen: OEE = DIVIDE(SUM(OEE_Schicht[Laufzeit_min]),SUM(OEE_Schicht[Planzeit_min])) × Leistung × Qualität, oder fertige Spalte OEE_Schicht[OEE] mitteln (gewichtet).','Visuals: Kachel OEE, Säulen OEE je Tag und Maschine, Balken Stillstand je Grund (Pareto), Tabelle Rückmeldung.','Datenquelle als Datei im OneDrive ablegen: bei jedem neuen Export aktualisiert Power BI per Klick.'],
+ conTitle:'Wo diese App im Werk sitzt',conHint:'Viele Mittelständler haben SAP, aber kein MES. Dazwischen liegt Papier. Diese App schließt die Lücke mit einfachen Mitteln.',
+ mapTitle:'Funktion → Fachbegriff',
+ map:[['Auftragsliste aus SAP-Export importieren','ERP-Anbindung'],['Bediener meldet Stillstandsgrund und Ausschuss','BDE (Betriebsdatenerfassung)'],['Simuliertes Maschinensignal Lauf/Stillstand/Stückzahl','MDE (Maschinendatenerfassung)'],['OEE, Pareto, Maßnahmen, Schichtbericht','MES-Funktionen'],['Export Gutmenge/Ausschuss je Auftrag','Rückmeldung an ERP'],['Excel-Export als Datenquelle','Reporting (Power BI)']],
+ realTitle:'Im echten Werk',real:['Maschinensignal: Stromzangen-Sensor oder SPS-Ausgang über ein IoT-Gateway (OPC UA oder MQTT).','ERP: geplanter Export aus SAP (z. B. COOIS) oder Schnittstelle (RFC/OData) – mit der IT abgestimmt.','Daten: gemeinsame Datenbank statt Gerätespeicher, damit alle Tablets dieselben Daten sehen.'],
+ setPlant:'Werk',plantName:'Werksname',targetOee:'OEE-Ziel (%)',machinesT:'Maschinen',rate:'Soll-Leistung (Stk/h)',name:'Name',
+ addMachine:'Maschine hinzufügen',stopReasons:'Stillstandsgründe',scrapReasons:'Ausschussgründe',plannedFlag:'geplant',
+ addReason:'Grund hinzufügen',labels:'QR-Etiketten für Maschinen',labelsHint:'Ausdrucken und an die Maschine kleben. Handy-Kamera drauf → App öffnet direkt diese Maschine.',
+ demo:'Demodaten',resetDemo:'Beispieldaten neu laden',clearAll:'Alle Daten löschen',sure:'Wirklich? Das überschreibt alle Daten auf diesem Gerät.',yes:'Ja',no:'Abbrechen',done:'Erledigt',
+ install:'Als App installieren',offline:'Funktioniert offline. Daten bleiben auf diesem Gerät.',
+ camFail:'Kamera nicht verfügbar. Maschine bitte auswählen:',scanHint:'QR-Etikett an der Maschine in den Rahmen halten.',close:'Schließen',scanned:'Maschine {m} geöffnet',
+ deleteQ:'Löschen?',noteSaved:'Notiz gespeichert',
+ unitNote:'Mengen in Profilstücken (Stk).', perShift:'je Schicht'},
+en:{tabs:{op:'Machine',dash:'Dashboard',shift:'Shift report',act:'Actions',ord:'Orders',exp:'Export',con:'System links',set:'Setup'},
+ plantDefault:'Extrusion plant (demo)',
+ running:'RUNNING',stopped:'STOPPED',idle:'NO SIGNAL',since:'since',source:'Source',srcMDE:'Machine signal (MDE)',srcBDE:'Manual (BDE)',
+ order:'Order',noOrder:'No order selected',changeOrder:'Select order',scan:'Scan QR code',
+ simToggle:'Simulate machine signal (MDE)',simHint:'The simulation stands in for a sensor or PLC: it reports running/stopped and part counts by itself. It first replays the current shift in fast motion, then runs live at demo pace (states change faster than in reality).',
+ simCatch:'Fast motion: replaying the shift …',simLive:'Live (demo pace)',
+ startStop:'Report a stop',endStop:'Machine running again',pickReason:'Choose a reason',
+ unexplained:'Unexplained stops',unexpHint:'The machine stopped but nobody recorded a reason. Please assign one:',assign:'Assign reason',
+ qtyTitle:'Report quantity',good:'Good parts',scrap:'Scrap',scrapReason:'Scrap reason',book:'Book',booked:'Booked',
+ qtyHintMDE:'Good parts come from the machine counter automatically. Report scrap only.',
+ recent:'Latest entries (this shift)',undo:'Delete',thisShift:'Current shift',
+ oee:'OEE',avail:'Availability',perf:'Performance',qual:'Quality',downtime:'Downtime',scrapRate:'Scrap rate',pcs:'pcs',min:'min',h:'h',
+ openActions:'Open actions',unexpCount:'Unexplained stops',
+ today:'Today',d7:'7 days',all:'All',machine:'Machine',machines:'Machines',
+ oeeTrend:'OEE per day and machine',oeeShift:'OEE per shift and machine',target:'Target',
+ pareto:'Stop reasons (unplanned)',paretoSub:'Minutes, sorted by loss',addAction:'+ Action',
+ scrapBy:'Scrap by cause',ordersProg:'Order progress (plan vs. actual)',
+ planned:'Plan',actual:'Actual',due:'Due',status:'Status',material:'Material',
+ st_planned:'Planned',st_running:'Running',st_done:'Done',st_late:'Late',
+ noData:'No data in the selected period.',
+ shiftF:'Early',shiftS:'Late',shiftN:'Night',date:'Date',shift:'Shift',
+ stopsList:'Stops',from:'from',to:'to',duration:'Duration',reason:'Reason',noReason:'— unexplained —',
+ handover:'Handover to next shift',handoverText:'Handover note',author:'Name',save:'Save',
+ ackBy:'Taken over by',ack:'Confirm takeover',acked:'Taken over',print:'Print / PDF',
+ actTitle:'Action',owner:'Owner',add:'Add',st_open:'Open',st_prog:'In progress',st_closed:'Done',overdue:'overdue',
+ actPrefill:'Reduce stops caused by “{r}” on {m}',actEmpty:'No actions yet.',
+ importTitle:'Import orders from ERP',importHint:'Excel or CSV file, e.g. an SAP export of production orders. Recognised columns: Order, Material, Quantity, Machine, Due.',
+ importBtn:'Choose file',sample:'Download sample file',imported:'{n} orders imported',importFail:'No matching columns found. Required: order and quantity.',
+ newOrder:'Add order manually',active:'Active',setActive:'Set active',
+ expTitle:'Export data',expHint:'Clean tables for Excel and Power BI. Each row is one event with timestamp, machine and order.',
+ expAll:'Excel file (all tables)',expCsv:'Single CSV files',backup:'Backup (JSON)',restore:'Load backup',
+ dlBlocked:'Downloads are blocked in the preview. They work in the installed app.',
+ rm:'Confirmation per order (to ERP)',rmHint:'This table matches the confirmation an MES sends to SAP: good parts, scrap and downtime per order.',
+ pbiTitle:'Power BI in 6 steps',
+ pbi:['Export the Excel file and save it in a folder (e.g. OneDrive).','Open Power BI Desktop → Get data → Excel workbook → select all tables → Load.','In the model: link Maschinen to Stillstaende, Mengen and OEE_Schicht via the Maschine column; Auftraege to Mengen via Auftrag.','Create a measure, or average the ready column OEE_Schicht[OEE] weighted by Planzeit_min.','Visuals: OEE card, columns of OEE per day and machine, bars of downtime per reason (Pareto), confirmation table.','Keep the file in OneDrive: after each new export, Power BI refreshes with one click.'],
+ conTitle:'Where this app sits in the plant',conHint:'Many mid-sized firms have SAP but no MES. In between is paper. This app closes the gap with simple means.',
+ mapTitle:'Feature → industry term',
+ map:[['Import order list from SAP export','ERP link'],['Operator reports stop reason and scrap','BDE (operator data capture)'],['Simulated machine signal: run/stop/count','MDE (machine data capture)'],['OEE, Pareto, actions, shift report','MES functions'],['Export good parts/scrap per order','Confirmation to ERP'],['Excel export as data source','Reporting (Power BI)']],
+ realTitle:'In a real plant',real:['Machine signal: clamp-on current sensor or PLC output through an IoT gateway (OPC UA or MQTT).','ERP: scheduled export from SAP (e.g. COOIS) or an interface (RFC/OData), agreed with IT.','Data: a shared database instead of device storage, so every tablet sees the same data.'],
+ setPlant:'Plant',plantName:'Plant name',targetOee:'OEE target (%)',machinesT:'Machines',rate:'Ideal rate (pcs/h)',name:'Name',
+ addMachine:'Add machine',stopReasons:'Stop reasons',scrapReasons:'Scrap reasons',plannedFlag:'planned',
+ addReason:'Add reason',labels:'QR labels for machines',labelsHint:'Print and stick on the machine. Point a phone camera at it → the app opens that machine.',
+ demo:'Demo data',resetDemo:'Reload sample data',clearAll:'Delete all data',sure:'Are you sure? This overwrites all data on this device.',yes:'Yes',no:'Cancel',done:'Done',
+ install:'Install as app',offline:'Works offline. Data stays on this device.',
+ camFail:'Camera not available. Please choose the machine:',scanHint:'Hold the machine\'s QR label inside the frame.',close:'Close',scanned:'Opened machine {m}',
+ deleteQ:'Delete?',noteSaved:'Note saved',
+ unitNote:'Quantities in profile pieces (pcs).', perShift:'per shift'}
+};
+let LANG='de';
+const t=(k,vars)=>{let s=(I18N[LANG][k]!==undefined?I18N[LANG][k]:I18N.de[k]);if(typeof s==='string'&&vars)for(const v in vars)s=s.replace('{'+v+'}',vars[v]);return s;};
+const lbl=o=>o?(o[LANG]||o.de||o.id):'';
+
+/* ================= helpers ================= */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);
+const HOUR=3600e3, MIN=60e3, DAY=86400e3;
+const pad=n=>String(n).padStart(2,'0');
+const dayStart=ts=>{const d=new Date(ts);d.setHours(0,0,0,0);return d.getTime();};
+const ymd=ts=>{const d=new Date(ts);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
+const parseYmd=s=>{const [y,m,d]=String(s).split('-').map(Number);return new Date(y,m-1,d).getTime();};
+const hm=ts=>{const d=new Date(ts);return pad(d.getHours())+':'+pad(d.getMinutes());};
+const dshort=ts=>{const d=new Date(ts);return LANG==='de'?pad(d.getDate())+'.'+pad(d.getMonth()+1)+'.':d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});};
+const wday=ts=>new Date(ts).toLocaleDateString(LANG==='de'?'de-DE':'en-GB',{weekday:'short'});
+const fmtN=(n,d=0)=>Number(n||0).toLocaleString(LANG==='de'?'de-DE':'en-GB',{minimumFractionDigits:d,maximumFractionDigits:d});
+const pct=(x,d=0)=>x==null||isNaN(x)?'–':fmtN(x*100,d)+' %';
+const mins=ms=>Math.round(ms/MIN);
+const dur=ms=>{const m=Math.round(ms/MIN);return m<60?m+' '+t('min'):Math.floor(m/60)+' '+t('h')+' '+pad(m%60)+' '+t('min');};
+const overlap=(a0,a1,b0,b1)=>Math.max(0,Math.min(a1,b1)-Math.max(a0,b0));
+const SHIFTS=[{id:'F',h:6},{id:'S',h:14},{id:'N',h:22}];
+const shiftName=id=>t('shift'+id);
+function shiftWindow(date,id){const h=SHIFTS.find(s=>s.id===id).h;const d=new Date(date);d.setHours(h,0,0,0);const s=d.getTime();const e=new Date(s);e.setHours(e.getHours()+8);return [s,e.getTime()];}
+function shiftAt(ts){const h=new Date(ts).getHours();let date=dayStart(ts),id;if(h>=6&&h<14)id='F';else if(h>=14&&h<22)id='S';else{id='N';if(h<6)date=dayStart(ts-12*HOUR);}return {date,id,win:shiftWindow(date,id)};}
+const isWorkday=date=>{const g=new Date(date).getDay();return g>=1&&g<=5;};
+let inFrame=true;try{inFrame=window.self!==window.top;}catch(e){inFrame=true;}
+
+/* ================= seed data ================= */
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let x=Math.imul(seed^seed>>>15,1|seed);x=x+Math.imul(x^x>>>7,61|x)^x;return((x^x>>>14)>>>0)/4294967296;};}
+const STOP_REASONS=[
+ {id:'die_change',de:'Werkzeugwechsel',en:'Die change',planned:false,d:[20,45]},
+ {id:'billet',de:'Bolzenofen nicht bereit',en:'Billet furnace not ready',planned:false,d:[6,20]},
+ {id:'puller',de:'Puller-Störung',en:'Puller fault',planned:false,d:[5,18]},
+ {id:'quench',de:'Abschreckung/Kühlung',en:'Quench fault',planned:false,d:[6,25]},
+ {id:'no_mat',de:'Kein Material',en:'No billets',planned:false,d:[10,40]},
+ {id:'qhold',de:'Qualitätsprüfung',en:'Quality hold',planned:false,d:[10,30]},
+ {id:'saw',de:'Säge-Störung',en:'Saw fault',planned:false,d:[5,15]},
+ {id:'die_fail',de:'Matrizenbruch',en:'Die failure',planned:false,d:[35,90]},
+ {id:'maint',de:'Geplante Wartung',en:'Planned maintenance',planned:true,d:[60,90]},
+ {id:'break',de:'Pause',en:'Break',planned:true,d:[30,30]},
+ {id:'no_order',de:'Kein Auftrag',en:'No order',planned:true,d:[30,60]}];
+const SCRAP_REASONS=[
+ {id:'surface',de:'Oberflächenfehler',en:'Surface defect'},
+ {id:'dim',de:'Maßabweichung',en:'Out of tolerance'},
+ {id:'seam',de:'Pressnahtfehler',en:'Weld seam defect'},
+ {id:'blister',de:'Blasen',en:'Blisters'},
+ {id:'twist',de:'Verdrehung',en:'Twist'},
+ {id:'ends',de:'Anfahr-/Endstück',en:'Start/end cut'}];
+function pickW(r,w){const tot=Object.values(w).reduce((a,b)=>a+b,0);let x=r()*tot;for(const k in w){x-=w[k];if(x<=0)return k;}return Object.keys(w)[0];}
+
+function seed(lang){
+  const r=rng(20261019), now=Date.now(), today=dayStart(now);
+  const de=lang!=='en';
+  const machines=[{id:'P1',name:de?'Presse 1 · 7 Zoll':'Press 1 · 7 inch',rate:60},{id:'P2',name:de?'Presse 2 · 8 Zoll':'Press 2 · 8 inch',rate:48},{id:'P3',name:de?'Presse 3 · 10 Zoll':'Press 3 · 10 inch',rate:30}];
+  const O=(no,mat,qty,m,dd)=>({no,material:mat,qty,machine:m,due:ymd(today+dd*DAY),status:'planned'});
+  const orders=[
+   O('1000412','EN AW-6060 T66 · Rechteckrohr 40×20×2',1600,'P1',-5),O('1000418','EN AW-6063 T5 · Fensterprofil F-210',2200,'P1',-1),O('1000425','EN AW-6060 T66 · L-Profil 30×30×3',2600,'P1',4),O('1000431','EN AW-6063 T5 · Rundrohr Ø25×1,5',2000,'P1',9),
+   O('1000414','EN AW-6082 T6 · Kühlkörper KK-85',1300,'P2',-4),O('1000420','EN AW-6005A T6 · Solarprofil SP-12',2100,'P2',-1),O('1000427','EN AW-6060 T66 · Fassadenprofil FP-60',1800,'P2',6),O('1000433','EN AW-6082 T6 · Rahmenprofil RP-40',1500,'P2',11),
+   O('1000416','EN AW-6082 T6 · Strukturprofil SP-120',650,'P3',-3),O('1000422','EN AW-6061 T6 · Crashbox-Profil CB-90',850,'P3',1),O('1000429','EN AW-6082 T6 · Batteriewannenprofil BW-200',700,'P3',7),O('1000435','EN AW-6005A T6 · Schienenprofil SR-50',800,'P3',12)];
+  const weights={P1:{die_change:8,billet:3,puller:2,quench:2,no_mat:2,qhold:2,saw:1,die_fail:1},P2:{die_change:4,billet:3,puller:6,quench:2,no_mat:2,qhold:1,saw:2,die_fail:1},P3:{die_change:4,billet:2,puller:1,quench:4,no_mat:1,qhold:3,saw:1,die_fail:3}};
+  const scrapW={P1:{surface:4,dim:2,seam:1,blister:1,twist:1,ends:4},P2:{surface:3,dim:3,seam:1,blister:2,twist:2,ends:3},P3:{surface:2,dim:2,seam:6,blister:2,twist:3,ends:3}};
+  const stops=[],counts=[],notes=[];
+  const prog={};orders.forEach(o=>prog[o.no]=0);
+  const queue={P1:orders.filter(o=>o.machine==='P1'),P2:orders.filter(o=>o.machine==='P2'),P3:orders.filter(o=>o.machine==='P3')};
+  const cur={P1:0,P2:0,P3:0};
+  const curShift=shiftAt(now);
+  const maintDay={P1:today-5*DAY,P2:today-3*DAY,P3:today-6*DAY};
+  for(let d=today-9*DAY; d<=today; d=dayStart(d+30*HOUR)){
+    if(!isWorkday(d))continue;
+    for(const S of SHIFTS){
+      const [s,e]=shiftWindow(d,S.id);
+      if(e>curShift.win[0]||e>now)continue; // only completed shifts
+      for(const m of machines){
+        const ms=[];
+        const busy=(a,b)=>ms.some(x=>a<x.end+5*MIN&&b>x.start-5*MIN);
+        const add=(reason,a,b,src)=>{ms.push({id:uid(),m:m.id,start:a,end:b,reason,src:src||'BDE'});};
+        add('break',s+4*HOUR,s+4*HOUR+30*MIN);
+        if(dayStart(maintDay[m.id])===dayStart(d)&&S.id==='F'){add('maint',s+HOUR,s+HOUR+75*MIN);}
+        const k=2+Math.floor(r()*3)+(m.id==='P3'?1:0);
+        for(let i=0;i<k;i++){
+          const rid=pickW(r,weights[m.id]);const R=STOP_REASONS.find(x=>x.id===rid);
+          const len=(R.d[0]+r()*(R.d[1]-R.d[0]))*MIN;
+          for(let tries=0;tries<12;tries++){const a=s+15*MIN+r()*(8*HOUR-len-30*MIN);const st=Math.round(a/MIN)*MIN,en=st+Math.round(len/MIN)*MIN;if(!busy(st,en)){add(rid,st,en,'MDE');break;}}
+        }
+        // counts per hour
+        const perf=0.84+r()*0.11;
+        const scrapRate=m.id==='P3'?0.035+r()*0.025:0.012+r()*0.022;
+        let acc=0,shiftPcs=0;
+        for(let h=0;h<8;h++){
+          const a=s+h*HOUR,b=a+HOUR;
+          const down=ms.reduce((t0,x)=>t0+overlap(x.start,x.end,a,b),0);
+          acc+=(HOUR-down)/HOUR*m.rate*perf;
+          const q=Math.floor(acc);acc-=q;
+          const o=queue[m.id][cur[m.id]];
+          if(q>0&&o){counts.push({id:uid(),m:m.id,order:o.no,ts:b-MIN,qty:q,scrap:0,reason:null,src:'MDE'});shiftPcs+=q;prog[o.no]+=q*(1-scrapRate);
+            if(prog[o.no]>=o.qty){o.status='done';if(cur[m.id]<queue[m.id].length-1)cur[m.id]++;}}
+          ms.forEach(x=>{if(x.start>=a&&x.start<b&&!x.order)x.order=(queue[m.id][cur[m.id]]||{}).no||null;});
+        }
+        let scrapTot=Math.round(shiftPcs*scrapRate);
+        const parts=1+Math.floor(r()*3);
+        for(let p=0;p<parts&&scrapTot>0;p++){const q=p===parts-1?scrapTot:Math.max(1,Math.round(scrapTot*(0.3+r()*0.4)));scrapTot-=q;
+          const o=queue[m.id][cur[m.id]];counts.push({id:uid(),m:m.id,order:o?o.no:null,ts:e-(5+p)*MIN,qty:0,scrap:q,reason:pickW(r,scrapW[m.id]),src:'BDE'});}
+        stops.push(...ms);
+      }
+    }
+  }
+  // current orders running
+  const active={};machines.forEach(m=>{const o=queue[m.id][cur[m.id]];if(o){if(o.status!=='done')o.status='running';active[m.id]=o.no;}});
+  // one unexplained stop in the most recent completed shift on P2
+  const lastStops=stops.filter(x=>x.m==='P2'&&x.reason!=='break'&&x.reason!=='maint').sort((a,b)=>b.start-a.start);
+  if(lastStops[0]){lastStops[0].reason=null;lastStops[0].src='MDE';}
+  // notes
+  const prevShift=shiftAt(curShift.win[0]-HOUR);
+  const N=(date,shift,m,text,author)=>notes.push({id:uid(),date:ymd(date),shift,m,text,author,ts:now-2*HOUR,ack:null});
+  N(prevShift.date,prevShift.id,'P2',de?'Puller an P2 hat zweimal ausgelöst, Sensor wirkt verschmutzt. Instandhaltung informiert.':'Puller on P2 tripped twice, sensor looks dirty. Maintenance informed.',de?'K. Demir':'K. Demir');
+  N(prevShift.date,prevShift.id,'P3',de?'Pressnahtfehler bei BW-200 erhöht – Bolzentemperatur bitte prüfen.':'More weld seam defects on BW-200 – please check billet temperature.','A. Novak');
+  const A=(title,m,reason,owner,dd,status)=>({id:uid(),title,m,reason,owner,due:ymd(today+dd*DAY),status,created:now-3*DAY});
+  const actions=[
+   A(de?'Werkzeugwechsel P1: Rüstzeit mit SMED-Workshop senken':'Die change P1: cut changeover time with a SMED workshop','P1','die_change','M. Weber',5,'prog'),
+   A(de?'Puller-Sensor P2 reinigen und Grenzwert prüfen':'Clean puller sensor on P2 and check threshold','P2','puller',de?'Instandhaltung · T. Kaya':'Maintenance · T. Kaya',-1,'open'),
+   A(de?'Pressnahtfehler P3: Bolzentemperatur und Pressgeschwindigkeit prüfen':'Weld seam defects P3: check billet temperature and ram speed','P3','qhold','A. Novak',3,'open'),
+   A(de?'Bolzenofen: Aufheizplan an Schichtbeginn anpassen':'Billet furnace: adjust heating plan at shift start','P1','billet','R. Schulz',-6,'closed')];
+  return {v:1,lang,plant:de?I18N.de.plantDefault:I18N.en.plantDefault,target:65,machines,stopReasons:STOP_REASONS.map(({d,...x})=>x),scrapReasons:SCRAP_REASONS.slice(),orders,active,stops,counts,notes,actions,seededAt:now};
+}
+
+/* ================= state ================= */
+const KEY='shopfloor-cockpit-v1';
+let S=null;
+try{S=JSON.parse(localStorage.getItem(KEY));}catch(e){}
+try{const l=localStorage.getItem(KEY+'-lang');if(l)LANG=l;}catch(e){}
+if(!S||!S.v){S=seed(LANG);}
+LANG=S.lang||LANG;
+let saveT=null;
+function save(now){clearTimeout(saveT);const f=()=>{try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}};if(now)f();else saveT=setTimeout(f,400);}
+save(true);
+const UI={tab:'op',m:(S.machines[0]||{}).id,range:'d7',dm:'all',stopFor:null,shDate:null,shShift:null,shM:'all',confirm:null,actPrefill:null};
+try{const u=JSON.parse(localStorage.getItem(KEY+'-ui')||'{}');Object.assign(UI,{tab:u.tab||UI.tab,m:u.m||UI.m,range:u.range||UI.range,dm:u.dm||UI.dm});}catch(e){}
+const saveUI=()=>{try{localStorage.setItem(KEY+'-ui',JSON.stringify({tab:UI.tab,m:UI.m,range:UI.range,dm:UI.dm}));}catch(e){}};
+// deep link ?m=P2
+try{const q=new URLSearchParams(location.search).get('m');if(q&&S.machines.some(x=>x.id===q)){UI.m=q;UI.tab='op';}}catch(e){}
+
+const M=id=>S.machines.find(x=>x.id===id);
+const R=id=>S.stopReasons.find(x=>x.id===id);
+const SR=id=>S.scrapReasons.find(x=>x.id===id);
+const ORD=no=>S.orders.find(x=>x.no===no);
+const mColor=id=>'var(--s'+(Math.max(0,S.machines.findIndex(x=>x.id===id))%8+1)+')';
+function machState(id){if(openStop(id))return 'stop';const cs=shiftAt(Date.now());if(SIM[id]||S.counts.some(c=>c.m===id&&c.ts>=cs.win[0]))return 'run';return 'idle';}
+const isPlanned=st=>!!(st.reason&&R(st.reason)&&R(st.reason).planned);
+const openStop=m=>S.stops.find(x=>x.m===m&&x.end==null);
+
+/* ================= OEE ================= */
+function oeeRaw(mid,a,b){
+  const now=Date.now();b=Math.min(b,now);if(b<=a)return null;
+  const m=M(mid);let planned=0,unpl=0;
+  for(const x of S.stops){if(x.m!==mid)continue;const ov=overlap(x.start,x.end==null?now:x.end,a,b);if(!ov)continue;if(isPlanned(x))planned+=ov;else unpl+=ov;}
+  let qty=0,scrap=0,n=0;for(const c of S.counts){if(c.m===mid&&c.ts>=a&&c.ts<b){qty+=c.qty;scrap+=c.scrap;n++;}}
+  if(!n&&!planned&&!unpl)return null; // nothing reported for this machine in this window
+  const plan=Math.max(0,(b-a)-planned),run=Math.max(0,plan-unpl);
+  const ideal=run/HOUR*(m?m.rate:0);
+  return {plan,run,unpl,planned,qty,scrap,good:qty-scrap,ideal};
+}
+function sumRaw(list){const z={plan:0,run:0,unpl:0,planned:0,qty:0,scrap:0,good:0,ideal:0};for(const r of list){if(!r)continue;for(const k in z)z[k]+=r[k];}return z;}
+function kpi(z){const A=z.plan?z.run/z.plan:null;const P=z.ideal?Math.min(1,z.qty/z.ideal):null;const Q=z.qty?Math.max(0,z.good/z.qty):null;const O=(A!=null&&P!=null&&Q!=null)?A*P*Q:null;return {A,P,Q,O};}
+function shiftsIn(a,b){const out=[];for(let d=dayStart(a)-DAY;d<=b;d=dayStart(d+30*HOUR)){for(const s of SHIFTS){const w=shiftWindow(d,s.id);if(w[1]>a&&w[0]<b&&w[0]<=Date.now())out.push({date:d,id:s.id,win:w});}}return out;}
+function activeShift(sh){ // a shift counts if it is a workday shift or has any data
+  if(isWorkday(sh.date))return true;
+  return S.counts.some(c=>c.ts>=sh.win[0]&&c.ts<sh.win[1])||S.stops.some(x=>x.start<sh.win[1]&&(x.end||Date.now())>sh.win[0]);
+}
+function rangeWin(){const now=Date.now();if(UI.range==='today'){const cs=shiftAt(now);const a=shiftWindow(dayStart(now),'F')[0];return [Math.min(a,cs.win[0]),now];}return [dayStart(now)-6*DAY,now];}
+
+/* ================= simulator (MDE) ================= */
+const SIM={};
+function simStart(mid){
+  const now=Date.now(),cs=shiftAt(now);
+  const last=Math.max(cs.win[0],...S.counts.filter(c=>c.m===mid).map(c=>c.ts),...S.stops.filter(x=>x.m===mid).map(x=>x.end||x.start));
+  const os=openStop(mid);
+  SIM[mid]={on:true,clock:Math.min(last,now),state:os?'stop':'run',until:0,acc:0,lastFlush:Math.min(last,now)};
+  SIM[mid].until=SIM[mid].clock+nextDur(mid,SIM[mid].state,true);
+}
+function simStop(mid){const s=SIM[mid];if(!s)return;flushCount(mid,s.clock);delete SIM[mid];const os=openStop(mid);if(os&&os.src==='MDE'){os.end=Date.now();}save();}
+function nextDur(mid,state,catching){
+  const r=Math.random();
+  if(catching){return state==='run'?(25+r*70)*MIN:(6+r*28)*MIN;}
+  return state==='run'?(45+r*90)*1000:(25+r*45)*1000; // demo pace
+}
+function flushCount(mid,ts){const s=SIM[mid];if(!s)return;const q=Math.floor(s.acc);if(q>0){s.acc-=q;S.counts.push({id:uid(),m:mid,order:S.active[mid]||null,ts:Math.min(ts,Date.now()),qty:q,scrap:0,reason:null,src:'MDE'});}s.lastFlush=ts;}
+function simTick(){
+  const now=Date.now();let changed=false;
+  for(const mid in SIM){const s=SIM[mid];if(!s.on)continue;const m=M(mid);if(!m){delete SIM[mid];continue;}
+    let budget=24;
+    while(budget-->0){
+      const catching=s.clock<now-3000;
+      const step=catching?5*MIN:Math.max(0,now-s.clock);
+      if(step<=0)break;
+      const end=Math.min(s.clock+step,s.until,now);
+      const dt=end-s.clock;
+      if(s.state==='run'&&!S.active[mid]){/* no order: still runs, counts unassigned */}
+      if(s.state==='run'){s.acc+=dt/HOUR*m.rate*(0.88+Math.random()*0.08);}
+      s.clock=end;changed=true;
+      if(s.clock-s.lastFlush>=(catching?30*MIN:20000))flushCount(mid,s.clock);
+      if(s.clock>=s.until){
+        if(s.state==='run'){flushCount(mid,s.clock);S.stops.push({id:uid(),m:mid,start:s.clock,end:null,reason:null,src:'MDE',order:S.active[mid]||null});s.state='stop';}
+        else{const os=openStop(mid);if(os)os.end=s.clock;s.state='run';}
+        s.until=s.clock+nextDur(mid,s.state,s.clock<now-3000);
+      }
+      if(s.clock>=now)break;
+    }
+    s.catching=s.clock<now-3000;
+  }
+  if(changed){save();if(UI.tab==='op'||UI.tab==='dash')softRender();}
+}
+setInterval(simTick,1000);
+
+/* ================= render ================= */
+const TABS=['op','dash','shift','act','ord','exp','con','set'];
+function unexpCount(){return S.stops.filter(x=>!x.reason&&x.end!=null).length;}
+function renderTabs(){
+  const n=unexpCount();
+  $('#tabs').innerHTML=TABS.map(k=>`<button role="tab" id="tab-${k}" data-tab="${k}" aria-selected="${UI.tab===k}">${esc(I18N[LANG].tabs[k])}${k==='op'&&n?`<span class="dot num" title="${esc(t('unexpCount'))}">${n}</span>`:''}</button>`).join('');
+  $('#plantName').textContent=S.plant;
+  $('#lang-de').setAttribute('aria-pressed',LANG==='de');$('#lang-en').setAttribute('aria-pressed',LANG==='en');
+  document.documentElement.lang=LANG;
+}
+let lastSig='';
+function render(){renderTabs();const v=$('#view');v.innerHTML=VIEWS[UI.tab]();lastSig='';afterRender();}
+function softRender(){ // refresh live parts without losing form input
+  const ae=document.activeElement;if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT'))return;
+  const live=document.querySelectorAll('[data-live]');
+  if(!live.length)return;
+  renderTabs();
+  live.forEach(el=>{const f=LIVE[el.dataset.live];if(f)el.innerHTML=f();});
+}
+function afterRender(){
+  if(UI.tab==='set'){document.querySelectorAll('[data-qr]').forEach(el=>{el.innerHTML=qrSvg(el.dataset.qr);});}
+}
+function qrSvg(text){try{const q=qrcode(0,'M');q.addData(text);q.make();return q.createSvgTag({cellSize:4,margin:2,scalable:true});}catch(e){return '<small>'+esc(text)+'</small>';}}
+function toast(msg){const el=$('#toast');el.textContent=msg;el.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>el.hidden=true,2600);}
+
+/* ---------- operator ---------- */
+function opStatus(){
+  const mid=UI.m,m=M(mid);if(!m)return '';
+  const os=openStop(mid),sim=SIM[mid],now=Date.now();
+  const cs=shiftAt(now);
+  let cls,big,sub;
+  if(os){cls='stop';big=t('stopped');sub=`${t('since')} ${hm(os.start)} · ${dur(now-os.start)} · ${os.reason?esc(lbl(R(os.reason))):'<b>'+esc(t('noReason'))+'</b>'}`;}
+  else if(sim||S.counts.some(c=>c.m===mid&&c.ts>=cs.win[0])){cls='run';big=t('running');const ls=S.stops.filter(x=>x.m===mid&&x.end).sort((a,b)=>b.end-a.end)[0];sub=ls?`${t('since')} ${hm(Math.max(ls.end,cs.win[0]))}`:'';}
+  else{cls='idle';big=t('idle');sub=t('thisShift')+': '+shiftName(cs.id)+' '+hm(cs.win[0])+'–'+hm(cs.win[1]);}
+  const src=os?(os.src==='MDE'?t('srcMDE'):t('srcBDE')):(sim?t('srcMDE'):t('srcBDE'));
+  const ico=cls==='run'?'<svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M10 8l6 4-6 4z" fill="#fff"/></svg>':cls==='stop'?'<svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="4" fill="currentColor"/><rect x="8" y="8" width="8" height="8" fill="#fff"/></svg>':'<svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="3"/></svg>';
+  const z=oeeRaw(mid,cs.win[0],cs.win[1]),k=z?kpi(z):{};
+  const simLine=sim?`<span class="pill info">${esc(sim.catching?t('simCatch'):t('simLive'))}</span>`:'';
+  return `<div class="status ${cls}" role="status"><div class="big">${ico}${esc(big)}</div><div>${sub}</div><div class="small muted">${esc(t('source'))}: ${esc(src)} ${simLine}</div></div>
+  <div class="kpis">
+   <div class="kpi"><span class="l">${t('oee')} · ${esc(shiftName(cs.id))}</span><span class="v">${pct(k.O)}</span><span class="s">${t('avail')} ${pct(k.A)} · ${t('perf')} ${pct(k.P)} · ${t('qual')} ${pct(k.Q)}</span></div>
+   <div class="kpi"><span class="l">${t('good')}</span><span class="v">${fmtN(z?z.good:0)}</span><span class="s">${t('scrap')} ${fmtN(z?z.scrap:0)} ${t('pcs')}</span></div>
+   <div class="kpi"><span class="l">${t('downtime')}</span><span class="v">${fmtN(z?mins(z.unpl):0)}</span><span class="s">${t('min')} · ${t('avail')} ${pct(k.A)}</span></div>
+  </div>`;
+}
+function opUnexp(){
+  const list=S.stops.filter(x=>x.m===UI.m&&!x.reason).sort((a,b)=>b.start-a.start);
+  if(!list.length)return '';
+  return `<div class="unexp"><div class="card-head"><h3 style="color:var(--bad)">⚠ ${esc(t('unexplained'))} (${list.length})</h3></div><p class="small">${esc(t('unexpHint'))}</p>
+   ${list.slice(0,4).map(x=>`<div class="row" style="justify-content:space-between"><span class="num">${dshort(x.start)} ${hm(x.start)}–${x.end?hm(x.end):'…'} · ${dur((x.end||Date.now())-x.start)}</span>
+     <button class="btn sm" data-act="assignOpen" data-id="${x.id}" aria-expanded="${UI.stopFor===x.id}">${esc(t('assign'))}</button></div>
+     ${UI.stopFor===x.id?reasonGrid('assign',x.id):''}`).join('')}</div>`;
+}
+function reasonGrid(mode,id){
+  return `<div class="reasons">${S.stopReasons.map(r=>`<button class="${r.planned?'planned':''}" data-act="${mode}" data-id="${id||''}" data-r="${r.id}">${esc(lbl(r))}${r.planned?` <span class="small muted">(${esc(t('plannedFlag'))})</span>`:''}</button>`).join('')}</div>`;
+}
+function opFeed(){
+  const cs=shiftAt(Date.now());
+  const ev=[...S.stops.filter(x=>x.m===UI.m&&x.start>=cs.win[0]).map(x=>({ts:x.start,k:'s',x})),...S.counts.filter(c=>c.m===UI.m&&c.ts>=cs.win[0]).map(c=>({ts:c.ts,k:'c',x:c}))].sort((a,b)=>b.ts-a.ts).slice(0,10);
+  if(!ev.length)return `<p class="empty">–</p>`;
+  return `<div class="feed">${ev.map(e=>{const x=e.x;
+    if(e.k==='s')return `<div class="it"><time>${hm(x.start)}</time><span class="pill ${x.reason?(isPlanned(x)?'plan':'bad'):'bad'}">${esc(t('downtime'))}</span><span class="grow">${x.reason?esc(lbl(R(x.reason))):'<b>'+esc(t('noReason'))+'</b>'} · ${x.end?dur(x.end-x.start):'…'} <span class="small muted">${x.src}</span></span>${x.src==='BDE'?`<button class="btn sm" data-act="delStop" data-id="${x.id}">${esc(t('undo'))}</button>`:''}</div>`;
+    return `<div class="it"><time>${hm(x.ts)}</time><span class="pill ${x.scrap?'warn':'good'}">${x.scrap?esc(t('scrap')):esc(t('good'))}</span><span class="grow num">${x.scrap?fmtN(x.scrap)+' '+t('pcs')+' · '+esc(lbl(SR(x.reason))):'+'+fmtN(x.qty)+' '+t('pcs')} <span class="small muted">${x.src}</span></span>${x.src==='BDE'?`<button class="btn sm" data-act="delCount" data-id="${x.id}">${esc(t('undo'))}</button>`:''}</div>`;}).join('')}</div>`;
+}
+function opControls(){
+  const mid=UI.m,os=openStop(mid),sim=SIM[mid];
+  if(sim)return `<p class="small muted">${esc(t('simHint'))}</p>`;
+  if(os)return `<button class="btn primary" style="min-height:52px;font-size:1rem" data-act="endStop">▶ ${esc(t('endStop'))}</button>${!os.reason?`<h3>${esc(t('pickReason'))}</h3>${reasonGrid('setReasonOpen',os.id)}`:''}`;
+  return `<button class="btn danger" style="min-height:52px;font-size:1rem" data-act="toggleStopPick">■ ${esc(t('startStop'))}</button>${UI.stopFor==='new'?`<h3>${esc(t('pickReason'))}</h3>${reasonGrid('beginStop')}`:''}`;
+}
+const LIVE={opStatus,opUnexp,opFeed,opControls,dash:()=>dashBody()};
+const VIEWS={};
+VIEWS.op=()=>{
+  const mid=UI.m,m=M(mid);
+  if(!m)return `<div class="card"><p>${esc(t('machinesT'))}: –</p></div>`;
+  const ords=S.orders.filter(o=>o.machine===mid&&o.status!=='done');
+  const sim=!!SIM[mid];
+  return `
+  <div class="row" style="justify-content:space-between">
+    <div class="mchips" role="group" aria-label="${esc(t('machines'))}">${S.machines.map(x=>{const st=machState(x.id);const ux=S.stops.filter(s=>s.m===x.id&&!s.reason).length;const col=st==='stop'?'var(--bad)':st==='run'?'var(--good)':'var(--plan)';const txt=st==='stop'?'■ '+t('stopped'):st==='run'?'▶ '+t('running'):'○ '+t('idle');return `<button class="mchip" data-act="pickM" data-m="${x.id}" aria-pressed="${x.id===mid}"><b>${esc(x.id)}</b><span style="color:${col}">${esc(txt)}${ux?' · <span style="color:var(--bad)">⚠ '+ux+'</span>':''}</span></button>`;}).join('')}</div>
+    <button class="btn" data-act="scan"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4M8 12h8"/></svg>${esc(t('scan'))}</button>
+  </div>
+  <div class="grid2">
+   <section class="card">
+    <div class="card-head"><h2>${esc(m.name)}</h2><span class="small muted">${esc(t('rate'))}: ${fmtN(m.rate)}</span></div>
+    <div data-live="opStatus">${opStatus()}</div>
+    <label class="f">${esc(t('order'))}<select id="op-order" data-act="setOrder">${ords.length?'':`<option value="">${esc(t('noOrder'))}</option>`}${ords.map(o=>`<option value="${esc(o.no)}" ${S.active[mid]===o.no?'selected':''}>${esc(o.no)} · ${esc(o.material)} · ${fmtN(o.qty)} ${t('pcs')}</option>`).join('')}</select></label>
+    <label class="toggle"><input type="checkbox" id="op-sim" data-act="sim" ${sim?'checked':''}> ${esc(t('simToggle'))}</label>
+   </section>
+   <section class="card">
+    <div data-live="opUnexp">${opUnexp()}</div>
+    <div data-live="opControls" style="display:flex;flex-direction:column;gap:10px">${opControls()}</div>
+   </section>
+  </div>
+  <div class="grid2">
+   <section class="card">
+    <h2>${esc(t('qtyTitle'))}</h2>
+    ${sim?`<p class="note">${esc(t('qtyHintMDE'))}</p>`:''}
+    <div class="row" style="align-items:flex-end">
+     ${sim?'':`<label class="f" style="flex:1 1 120px">${esc(t('good'))} (${t('pcs')})<input id="q-good" type="number" inputmode="numeric" min="0" step="1" placeholder="0"></label>`}
+     <label class="f" style="flex:1 1 120px">${esc(t('scrap'))} (${t('pcs')})<input id="q-scrap" type="number" inputmode="numeric" min="0" step="1" placeholder="0"></label>
+    </div>
+    <label class="f">${esc(t('scrapReason'))}<select id="q-reason">${S.scrapReasons.map(r=>`<option value="${r.id}">${esc(lbl(r))}</option>`).join('')}</select></label>
+    <div><button class="btn primary" data-act="bookQty">${esc(t('book'))}</button></div>
+   </section>
+   <section class="card"><h2>${esc(t('recent'))}</h2><div data-live="opFeed">${opFeed()}</div></section>
+  </div>`;
+};
+
+/* ---------- dashboard ---------- */
+function dashData(){
+  const [a,b]=rangeWin();
+  const mids=UI.dm==='all'?S.machines.map(m=>m.id):[UI.dm];
+  const shifts=shiftsIn(a,b).filter(activeShift);
+  const per={};mids.forEach(id=>per[id]=shifts.map(sh=>({sh,z:oeeRaw(id,Math.max(sh.win[0],a),Math.min(sh.win[1],b))})));
+  const all=sumRaw(mids.flatMap(id=>per[id].map(p=>p.z)));
+  return {a,b,mids,shifts,per,all};
+}
+function barPath(x,y,w,h){const r=Math.min(3,w/2,h);if(h<=0)return '';return `M${x} ${y+h}V${y+r}Q${x} ${y} ${x+r} ${y}H${x+w-r}Q${x+w} ${y} ${x+w} ${y+r}V${y+h}Z`;}
+function oeeChart(D){
+  // buckets: per day (7d) or per shift (today)
+  const buckets=[];
+  if(UI.range==='today'){D.shifts.forEach(sh=>buckets.push({key:sh.date+sh.id,label:shiftName(sh.id),test:p=>p.sh===sh}));}
+  else{const days=[...new Set(D.shifts.map(s=>s.date))].sort((x,y)=>x-y);days.forEach(d=>buckets.push({key:d,label:wday(d)+' '+dshort(d),test:p=>p.sh.date===d}));}
+  if(!buckets.length)return `<p class="empty">${esc(t('noData'))}</p>`;
+  const W=680,H=250,L=40,Rr=12,T=14,B=34,pw=W-L-Rr,ph=H-T-B;
+  const bw=pw/buckets.length,gap=Math.max(6,bw*0.22),n=D.mids.length,barW=Math.max(4,(bw-gap)/n-2);
+  const y=v=>T+ph*(1-v);
+  let g='';[0,.25,.5,.75,1].forEach(v=>{g+=`<line class="grid" x1="${L}" x2="${W-Rr}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${v*100}%</text>`;});
+  const tgt=(S.target||0)/100;
+  let bars='';
+  buckets.forEach((bk,i)=>{const x0=L+i*bw+gap/2;
+    D.mids.forEach((mid,j)=>{const z=sumRaw(D.per[mid].filter(bk.test).map(p=>p.z));const k=kpi(z);const v=k.O||0;const x=x0+j*(barW+2);const h=ph*v;
+      bars+=`<path d="${barPath(x,y(v),barW,h)}" fill="${mColor(mid)}"><title>${esc(mid)} · ${esc(bk.label)}: OEE ${pct(k.O,1)} (A ${pct(k.A)} · P ${pct(k.P)} · Q ${pct(k.Q)})</title></path>`;});
+    bars+=`<text x="${L+i*bw+bw/2}" y="${H-B+18}" text-anchor="middle">${esc(bk.label)}</text>`;});
+  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(UI.range==='today'?t('oeeShift'):t('oeeTrend'))}">${g}<line class="axis" x1="${L}" x2="${W-Rr}" y1="${y(0)}" y2="${y(0)}"/>${bars}${tgt?`<line class="tgt" x1="${L}" x2="${W-Rr}" y1="${y(tgt)}" y2="${y(tgt)}"/><text x="${W-Rr}" y="${y(tgt)-5}" text-anchor="end">${esc(t('target'))} ${S.target} %</text>`:''}</svg></div>`;
+}
+function paretoHtml(D){
+  const byR={};let unexp=0;
+  for(const x of S.stops){if(!D.mids.includes(x.m)||isPlanned(x))continue;const ov=overlap(x.start,x.end==null?Date.now():x.end,D.a,D.b);if(!ov)continue;const k=x.reason||'_none';byR[k]=(byR[k]||0)+ov;}
+  const rows=Object.entries(byR).sort((p,q)=>q[1]-p[1]);
+  if(!rows.length)return `<p class="empty">${esc(t('noData'))}</p>`;
+  const tot=rows.reduce((s,r)=>s+r[1],0),max=rows[0][1];let cum=0;
+  return `<div class="hbars">${rows.map(([k,v])=>{cum+=v;const name=k==='_none'?t('noReason'):lbl(R(k));
+    return `<div class="hb"><span class="lab" title="${esc(name)}">${esc(name)}</span><div class="track"><div class="fill" style="width:${(v/max*100).toFixed(1)}%;${k==='_none'?'background:var(--bad)':''}"></div></div><span class="val">${fmtN(mins(v))} ${t('min')} · Σ ${fmtN(cum/tot*100)} %${k!=='_none'?` <button class="btn sm noprint" data-act="prefillAct" data-r="${k}">${esc(t('addAction'))}</button>`:''}</span></div>`;}).join('')}</div>`;
+}
+function scrapHtml(D){
+  const by={};for(const c of S.counts){if(!D.mids.includes(c.m)||!c.scrap||c.ts<D.a||c.ts>=D.b)continue;by[c.reason||'_']=(by[c.reason||'_']||0)+c.scrap;}
+  const rows=Object.entries(by).sort((p,q)=>q[1]-p[1]);if(!rows.length)return `<p class="empty">${esc(t('noData'))}</p>`;
+  const max=rows[0][1];
+  return `<div class="hbars">${rows.map(([k,v])=>`<div class="hb"><span class="lab">${esc(lbl(SR(k))||'–')}</span><div class="track"><div class="fill" style="width:${(v/max*100).toFixed(1)}%"></div></div><span class="val">${fmtN(v)} ${t('pcs')}</span></div>`).join('')}</div>`;
+}
+function orderStats(no){let good=0,scrap=0,down=0,first=null,last=null;for(const c of S.counts)if(c.order===no){good+=c.qty-c.scrap;scrap+=c.scrap;first=first==null?c.ts:Math.min(first,c.ts);last=last==null?c.ts:Math.max(last,c.ts);}for(const x of S.stops)if(x.order===no&&!isPlanned(x))down+=(x.end||Date.now())-x.start;return {good,scrap,down,first,last};}
+function orderStatus(o){const today=ymd(Date.now());if(o.status==='done')return ['good',t('st_done')];if(o.due<today)return ['bad',t('st_late')];if(o.status==='running'||Object.values(S.active).includes(o.no))return ['info',t('st_running')];return ['plan',t('st_planned')];}
+function ordersTable(filterM){
+  const list=S.orders.filter(o=>!filterM||filterM==='all'||o.machine===filterM);
+  if(!list.length)return `<p class="empty">–</p>`;
+  return `<div class="tw"><table><thead><tr><th>${esc(t('order'))}</th><th>${esc(t('material'))}</th><th>${esc(t('machine'))}</th><th class="n">${esc(t('planned'))}</th><th class="n">${esc(t('actual'))}</th><th>%</th><th>${esc(t('due'))}</th><th>${esc(t('status'))}</th></tr></thead><tbody>
+  ${list.map(o=>{const st=orderStats(o.no),p=o.qty?Math.min(1,st.good/o.qty):0,[c,l]=orderStatus(o);return `<tr><td class="num">${esc(o.no)}</td><td>${esc(o.material)}</td><td>${esc(o.machine||'–')}</td><td class="n num">${fmtN(o.qty)}</td><td class="n num">${fmtN(st.good)}</td><td><div class="prog" title="${fmtN(p*100)} %"><i style="width:${(p*100).toFixed(1)}%"></i></div></td><td class="num">${esc(o.due?dshort(parseYmd(o.due)):'–')}</td><td><span class="pill ${c}">${esc(l)}</span></td></tr>`;}).join('')}</tbody></table></div>`;
+}
+function dashBody(){
+  const D=dashData(),k=kpi(D.all);
+  const openA=S.actions.filter(a=>a.status!=='closed').length,ux=S.stops.filter(x=>!x.reason&&D.mids.includes(x.m)).length;
+  return `<div class="kpis">
+    <div class="kpi"><span class="l">${t('oee')}</span><span class="v">${pct(k.O,1)}</span><span class="s">${t('target')} ${S.target} %</span></div>
+    <div class="kpi"><span class="l">${t('avail')}</span><span class="v">${pct(k.A)}</span><span class="s">${fmtN(D.all.unpl/HOUR,1)} ${t('h')} ${t('downtime')}</span></div>
+    <div class="kpi"><span class="l">${t('perf')}</span><span class="v">${pct(k.P)}</span><span class="s">${fmtN(D.all.qty)} / ${fmtN(D.all.ideal)} ${t('pcs')}</span></div>
+    <div class="kpi"><span class="l">${t('qual')}</span><span class="v">${pct(k.Q,1)}</span><span class="s">${t('scrapRate')} ${D.all.qty?fmtN(D.all.scrap/D.all.qty*100,1):'–'} %</span></div>
+    <div class="kpi"><span class="l">${t('good')}</span><span class="v">${fmtN(D.all.good)}</span><span class="s">${t('pcs')}</span></div>
+    <div class="kpi ${ux?'hot':''}"><span class="l">${t('unexpCount')}</span><span class="v">${ux}</span><span class="s">${t('openActions')}: ${openA}</span></div>
+  </div>
+  <section class="card"><div class="card-head"><h2>${esc(UI.range==='today'?t('oeeShift'):t('oeeTrend'))}</h2><div class="legend">${D.mids.map(id=>`<span><i class="swatch" style="background:${mColor(id)}"></i>${esc(id)} · ${esc(M(id).name)}</span>`).join('')}<span><svg width="18" height="6" aria-hidden="true"><line x1="0" x2="18" y1="3" y2="3" stroke="var(--target)" stroke-width="1.5" stroke-dasharray="5 4"/></svg>${esc(t('target'))}</span></div></div>${oeeChart(D)}</section>
+  <div class="grid2">
+   <section class="card"><div class="card-head"><h2>${esc(t('pareto'))}</h2><span class="small muted">${esc(t('paretoSub'))}</span></div>${paretoHtml(D)}</section>
+   <section class="card"><div class="card-head"><h2>${esc(t('scrapBy'))}</h2><span class="small muted">${esc(t('unitNote'))}</span></div>${scrapHtml(D)}</section>
+  </div>
+  <section class="card"><h2>${esc(t('ordersProg'))}</h2>${ordersTable(UI.dm)}</section>`;
+}
+VIEWS.dash=()=>`<div class="row" style="justify-content:space-between">
+   <div class="seg" role="group">${['today','d7'].map(r=>`<button data-act="range" data-v="${r}" aria-pressed="${UI.range===r}">${esc(t(r))}</button>`).join('')}</div>
+   <div class="seg" role="group">${['all',...S.machines.map(m=>m.id)].map(id=>`<button data-act="dm" data-v="${id}" aria-pressed="${UI.dm===id}">${esc(id==='all'?t('all'):id)}</button>`).join('')}</div>
+  </div><div data-live="dash" style="display:flex;flex-direction:column;gap:16px">${dashBody()}</div>`;
+
+/* ---------- shift report ---------- */
+VIEWS.shift=()=>{
+  const cs=shiftAt(Date.now());
+  if(UI.shDate==null){const prev=shiftAt(cs.win[0]-HOUR);UI.shDate=ymd(prev.date);UI.shShift=prev.id;}
+  const date=parseYmd(UI.shDate),[a,b]=shiftWindow(date,UI.shShift);
+  const mids=UI.shM==='all'?S.machines.map(m=>m.id):[UI.shM];
+  const z=sumRaw(mids.map(id=>oeeRaw(id,a,b))),k=kpi(z);
+  const stops=S.stops.filter(x=>mids.includes(x.m)&&x.start<b&&(x.end||Date.now())>a).sort((p,q)=>p.start-q.start);
+  const scr={};S.counts.filter(c=>mids.includes(c.m)&&c.ts>=a&&c.ts<b&&c.scrap).forEach(c=>scr[c.reason]=(scr[c.reason]||0)+c.scrap);
+  const notes=S.notes.filter(n=>n.date===UI.shDate&&n.shift===UI.shShift&&(UI.shM==='all'||n.m===UI.shM||!n.m));
+  const perM=mids.map(id=>{const r=oeeRaw(id,a,b),kk=r?kpi(r):{};return `<tr><td><i class="swatch" style="background:${mColor(id)}"></i> ${esc(id)}</td><td class="n num">${pct(kk.O)}</td><td class="n num">${pct(kk.A)}</td><td class="n num">${pct(kk.P)}</td><td class="n num">${pct(kk.Q)}</td><td class="n num">${fmtN(r?r.good:0)}</td><td class="n num">${fmtN(r?r.scrap:0)}</td><td class="n num">${fmtN(r?mins(r.unpl):0)}</td></tr>`;}).join('');
+  return `<div class="row noprint" style="align-items:flex-end">
+    <label class="f" style="flex:0 1 170px">${esc(t('date'))}<input type="date" id="sh-date" value="${esc(UI.shDate)}" data-act="shDate"></label>
+    <div class="seg" role="group">${SHIFTS.map(s=>`<button data-act="shShift" data-v="${s.id}" aria-pressed="${UI.shShift===s.id}">${esc(shiftName(s.id))}</button>`).join('')}</div>
+    <div class="seg" role="group">${['all',...S.machines.map(m=>m.id)].map(id=>`<button data-act="shM" data-v="${id}" aria-pressed="${UI.shM===id}">${esc(id==='all'?t('all'):id)}</button>`).join('')}</div>
+    ${inFrame?'':`<button class="btn" data-act="print">${esc(t('print'))}</button>`}
+  </div>
+  <section class="card"><div class="card-head"><h2>${esc(t('tabs').shift)} · ${esc(shiftName(UI.shShift))} · ${esc(dshort(date))} (${hm(a)}–${hm(b)})</h2><span class="small muted">${esc(S.plant)}</span></div>
+   <div class="kpis"><div class="kpi"><span class="l">${t('oee')}</span><span class="v">${pct(k.O,1)}</span></div><div class="kpi"><span class="l">${t('good')}</span><span class="v">${fmtN(z.good)}</span><span class="s">${t('pcs')}</span></div><div class="kpi"><span class="l">${t('scrap')}</span><span class="v">${fmtN(z.scrap)}</span><span class="s">${t('scrapRate')} ${z.qty?fmtN(z.scrap/z.qty*100,1):'–'} %</span></div><div class="kpi"><span class="l">${t('downtime')}</span><span class="v">${fmtN(mins(z.unpl))}</span><span class="s">${t('min')}</span></div></div>
+   <div class="tw"><table><thead><tr><th>${esc(t('machine'))}</th><th class="n">${t('oee')}</th><th class="n">${esc(t('avail'))}</th><th class="n">${esc(t('perf'))}</th><th class="n">${esc(t('qual'))}</th><th class="n">${esc(t('good'))}</th><th class="n">${esc(t('scrap'))}</th><th class="n">${esc(t('downtime'))} (${t('min')})</th></tr></thead><tbody>${perM}</tbody></table></div>
+  </section>
+  <div class="grid2">
+   <section class="card"><h2>${esc(t('stopsList'))} (${stops.length})</h2>${stops.length?`<div class="tw"><table><thead><tr><th>${esc(t('machine'))}</th><th>${esc(t('from'))}</th><th>${esc(t('to'))}</th><th class="n">${esc(t('duration'))}</th><th>${esc(t('reason'))}</th></tr></thead><tbody>${stops.map(x=>`<tr><td>${esc(x.m)}</td><td class="num">${hm(x.start)}</td><td class="num">${x.end?hm(x.end):'…'}</td><td class="n num">${fmtN(mins((x.end||Date.now())-x.start))} ${t('min')}</td><td>${x.reason?`<span class="pill ${isPlanned(x)?'plan':'bad'}">${esc(lbl(R(x.reason)))}</span>`:`<span class="pill bad">${esc(t('noReason'))}</span>`}</td></tr>`).join('')}</tbody></table></div>`:`<p class="empty">${esc(t('noData'))}</p>`}</section>
+   <section class="card"><h2>${esc(t('scrapBy'))}</h2>${Object.keys(scr).length?`<div class="hbars">${Object.entries(scr).sort((p,q)=>q[1]-p[1]).map(([kk,v],i,arr)=>`<div class="hb"><span class="lab">${esc(lbl(SR(kk)))}</span><div class="track"><div class="fill" style="width:${(v/arr[0][1]*100).toFixed(1)}%"></div></div><span class="val">${fmtN(v)} ${t('pcs')}</span></div>`).join('')}</div>`:`<p class="empty">${esc(t('noData'))}</p>`}
+    <h2 style="margin-top:8px">${esc(t('handover'))}</h2>
+    ${notes.map(n=>`<div class="note"><b>${esc(n.m||t('all'))} · ${esc(n.author)}</b><p>${esc(n.text)}</p><p class="small muted">${n.ack?`✓ ${esc(t('ackBy'))} ${esc(n.ack.by)} · ${dshort(n.ack.ts)} ${hm(n.ack.ts)}`:`<span class="row noprint" style="margin-top:6px"><input id="ack-${n.id}" placeholder="${esc(t('author'))}" style="max-width:180px"><button class="btn sm" data-act="ack" data-id="${n.id}">${esc(t('ack'))}</button></span>`}</p></div>`).join('')||`<p class="empty">–</p>`}
+    <div class="noprint" style="display:flex;flex-direction:column;gap:8px">
+     <label class="f">${esc(t('handoverText'))}<textarea id="note-text"></textarea></label>
+     <div class="row"><input id="note-author" placeholder="${esc(t('author'))}" style="max-width:200px"><button class="btn primary" data-act="saveNote">${esc(t('save'))}</button></div>
+    </div>
+   </section>
+  </div>`;
+};
+
+/* ---------- actions ---------- */
+VIEWS.act=()=>{
+  const today=ymd(Date.now());
+  const pf=UI.actPrefill||{};
+  const groups=[['open',t('st_open')],['prog',t('st_prog')],['closed',t('st_closed')]];
+  const row=a=>{const late=a.status!=='closed'&&a.due&&a.due<today;return `<div class="it"><span class="grow"><b>${esc(a.title)}</b><br><span class="small muted">${esc(a.m||'–')}${a.reason&&R(a.reason)?' · '+esc(lbl(R(a.reason))):''} · ${esc(t('owner'))}: ${esc(a.owner||'–')} · ${esc(t('due'))}: <span class="num">${a.due?esc(dshort(parseYmd(a.due))):'–'}</span></span> ${late?`<span class="pill bad">⚠ ${esc(t('overdue'))}</span>`:''}</span>
+    <select data-act="actStatus" data-id="${a.id}" style="width:auto" aria-label="${esc(t('status'))}">${groups.map(([v,l])=>`<option value="${v}" ${a.status===v?'selected':''}>${esc(l)}</option>`).join('')}</select>
+    <button class="btn sm" data-act="delAct" data-id="${a.id}">${esc(t('undo'))}</button></div>`;};
+  return `<section class="card"><h2>${esc(t('tabs').act)}</h2>
+   <div class="row" style="align-items:flex-end">
+    <label class="f" style="flex:3 1 260px">${esc(t('actTitle'))}<input id="a-title" value="${esc(pf.title||'')}"></label>
+    <label class="f" style="flex:1 1 110px">${esc(t('machine'))}<select id="a-m"><option value="">–</option>${S.machines.map(m=>`<option ${pf.m===m.id?'selected':''}>${esc(m.id)}</option>`).join('')}</select></label>
+    <label class="f" style="flex:1 1 150px">${esc(t('owner'))}<input id="a-owner"></label>
+    <label class="f" style="flex:1 1 150px">${esc(t('due'))}<input id="a-due" type="date" value="${ymd(Date.now()+7*DAY)}"></label>
+    <input type="hidden" id="a-reason" value="${esc(pf.r||'')}">
+    <button class="btn primary" data-act="addAct">${esc(t('add'))}</button>
+   </div></section>
+   ${groups.map(([v,l])=>{const list=S.actions.filter(a=>a.status===v).sort((p,q)=>(p.due||'').localeCompare(q.due||''));return `<section class="card"><h2>${esc(l)} (${list.length})</h2>${list.length?`<div class="feed">${list.map(row).join('')}</div>`:`<p class="empty">${esc(t('actEmpty'))}</p>`}</section>`;}).join('')}`;
+};
+
+/* ---------- orders ---------- */
+VIEWS.ord=()=>`<section class="card"><h2>${esc(t('importTitle'))}</h2><p class="muted small">${esc(t('importHint'))}</p>
+   <div class="row"><label class="btn primary" for="imp-file">${esc(t('importBtn'))}</label><input id="imp-file" type="file" accept=".csv,.xlsx,.xls,.txt" hidden data-act="importFile"><button class="btn" data-act="sampleCsv">${esc(t('sample'))}</button></div></section>
+  <section class="card"><h2>${esc(t('newOrder'))}</h2><div class="row" style="align-items:flex-end">
+   <label class="f" style="flex:1 1 120px">${esc(t('order'))}<input id="o-no"></label>
+   <label class="f" style="flex:3 1 220px">${esc(t('material'))}<input id="o-mat"></label>
+   <label class="f" style="flex:1 1 100px">${esc(t('planned'))} (${t('pcs')})<input id="o-qty" type="number" min="1"></label>
+   <label class="f" style="flex:1 1 100px">${esc(t('machine'))}<select id="o-m">${S.machines.map(m=>`<option>${esc(m.id)}</option>`).join('')}</select></label>
+   <label class="f" style="flex:1 1 150px">${esc(t('due'))}<input id="o-due" type="date" value="${ymd(Date.now()+7*DAY)}"></label>
+   <button class="btn primary" data-act="addOrder">${esc(t('add'))}</button></div></section>
+  <section class="card"><h2>${esc(t('ordersProg'))}</h2>${ordersTable('all')}</section>`;
+
+/* ---------- export ---------- */
+function tables(){
+  const mName=id=>(M(id)||{}).name||id;
+  const iso=ts=>ts==null?'':new Date(ts).toISOString();
+  const loc=ts=>ts==null?'':ymd(ts)+' '+hm(ts);
+  const Maschinen=S.machines.map(m=>({Maschine:m.id,Name:m.name,Soll_Stk_h:m.rate}));
+  const Stillstaende=S.stops.slice().sort((a,b)=>a.start-b.start).map(x=>({Maschine:x.m,Auftrag:x.order||'',Start:loc(x.start),Ende:loc(x.end),Dauer_min:mins((x.end||Date.now())-x.start),Grund:x.reason?lbl(R(x.reason)):'',Geplant:isPlanned(x)?'ja':'nein',Quelle:x.src,Schicht:shiftAt(x.start).id,Datum:ymd(shiftAt(x.start).date),Start_ISO:iso(x.start)}));
+  const Mengen=S.counts.slice().sort((a,b)=>a.ts-b.ts).map(c=>({Maschine:c.m,Auftrag:c.order||'',Zeit:loc(c.ts),Menge:c.qty,Ausschuss:c.scrap,Gutmenge:c.qty-c.scrap,Ausschussgrund:c.reason?lbl(SR(c.reason)):'',Quelle:c.src,Schicht:shiftAt(c.ts).id,Datum:ymd(shiftAt(c.ts).date)}));
+  const OEE_Schicht=[];
+  const first=Math.min(...S.counts.map(c=>c.ts),...S.stops.map(x=>x.start),Date.now());
+  shiftsIn(first,Date.now()).filter(activeShift).forEach(sh=>S.machines.forEach(m=>{const z=oeeRaw(m.id,sh.win[0],sh.win[1]);if(!z)return;const k=kpi(z);OEE_Schicht.push({Datum:ymd(sh.date),Schicht:sh.id,Maschine:m.id,Planzeit_min:mins(z.plan),Laufzeit_min:mins(z.run),Stillstand_ungeplant_min:mins(z.unpl),Menge:z.qty,Gutmenge:z.good,Ausschuss:z.scrap,Sollmenge:Math.round(z.ideal),Verfuegbarkeit:k.A==null?'':+k.A.toFixed(4),Leistung:k.P==null?'':+k.P.toFixed(4),Qualitaet:k.Q==null?'':+k.Q.toFixed(4),OEE:k.O==null?'':+k.O.toFixed(4)});}));
+  const Rueckmeldung=S.orders.map(o=>{const st=orderStats(o.no);return {Auftrag:o.no,Material:o.material,Maschine:o.machine||'',Sollmenge:o.qty,Gutmenge:Math.round(st.good),Ausschuss:st.scrap,Stillstand_min:mins(st.down),Erfuellung_Prozent:o.qty?Math.round(st.good/o.qty*1000)/10:'',Status:orderStatus(o)[1],Erste_Buchung:loc(st.first),Letzte_Buchung:loc(st.last),Termin:o.due||''};});
+  const Auftraege=S.orders.map(o=>({Auftrag:o.no,Material:o.material,Menge:o.qty,Maschine:o.machine||'',Termin:o.due||''}));
+  const Massnahmen=S.actions.map(a=>({Titel:a.title,Maschine:a.m||'',Grund:a.reason&&R(a.reason)?lbl(R(a.reason)):'',Verantwortlich:a.owner||'',Termin:a.due||'',Status:a.status}));
+  return {Maschinen,Auftraege,Stillstaende,Mengen,OEE_Schicht,Rueckmeldung,Massnahmen};
+}
+function download(name,blob){
+  if(inFrame){toast(t('dlBlocked'));return;}
+  const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);
+}
+const stamp=()=>ymd(Date.now());
+VIEWS.exp=()=>{const T=tables();return `<section class="card"><h2>${esc(t('expTitle'))}</h2><p class="muted small">${esc(t('expHint'))}</p>
+  <div class="row"><button class="btn primary" data-act="xlsx">${esc(t('expAll'))}</button></div>
+  <h3>${esc(t('expCsv'))}</h3><div class="row">${Object.keys(T).map(k=>`<button class="btn sm" data-act="csv" data-k="${k}">${k}.csv <span class="muted num">(${T[k].length})</span></button>`).join('')}</div>
+  <h3>${esc(t('backup'))}</h3><div class="row"><button class="btn sm" data-act="backup">${esc(t('backup'))}</button><label class="btn sm" for="rest-file">${esc(t('restore'))}</label><input id="rest-file" type="file" accept=".json" hidden data-act="restore"></div></section>
+ <section class="card"><h2>${esc(t('rm'))}</h2><p class="muted small">${esc(t('rmHint'))}</p><div class="tw"><table><thead><tr>${['Auftrag','Material','Sollmenge','Gutmenge','Ausschuss','Stillstand_min','Status'].map(h=>`<th class="${/menge|Ausschuss|Still/.test(h)?'n':''}">${h}</th>`).join('')}</tr></thead><tbody>${T.Rueckmeldung.map(r=>`<tr><td class="num">${esc(r.Auftrag)}</td><td>${esc(r.Material)}</td><td class="n num">${fmtN(r.Sollmenge)}</td><td class="n num">${fmtN(r.Gutmenge)}</td><td class="n num">${fmtN(r.Ausschuss)}</td><td class="n num">${fmtN(r.Stillstand_min)}</td><td>${esc(r.Status)}</td></tr>`).join('')}</tbody></table></div></section>
+ <section class="card"><h2>${esc(t('pbiTitle'))}</h2><ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">${t('pbi').map(s=>`<li>${esc(s)}</li>`).join('')}</ol></section>`;};
+
+/* ---------- connections ---------- */
+VIEWS.con=()=>{
+  const de=LANG==='de';
+  const box=(x,y,w,h,title,sub,hot)=>`<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${hot?'var(--accent-soft)':'var(--surface)'}" stroke="${hot?'var(--accent)':'var(--line-strong)'}" stroke-width="${hot?2:1.25}"/><text x="${x+14}" y="${y+24}" font-size="14" font-weight="700" fill="var(--ink)">${esc(title)}</text>${sub.map((s,i)=>`<text x="${x+14}" y="${y+44+i*17}" font-size="12" fill="var(--ink-2)">${esc(s)}</text>`).join('')}</g>`;
+  const arr=(x1,y1,x2,y2,label,lx,ly,anchor)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--ink-3)" stroke-width="1.25" marker-end="url(#ar)"/>${label?`<text x="${lx}" y="${ly}" font-size="11.5" fill="var(--ink-2)" text-anchor="${anchor||'start'}">${esc(label)}</text>`:''}`;
+  const svg=`<svg viewBox="0 0 760 520" role="img" aria-label="${esc(t('conTitle'))}"><defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--ink-3)"/></marker></defs>
+   ${box(40,20,300,90,'Power BI',[de?'Dashboards für die Leitung':'Dashboards for management',de?'OEE, Ausschuss, Liefertreue':'OEE, scrap, on-time delivery'],false)}
+   ${box(420,20,300,90,'ERP · SAP',[de?'Fertigungsaufträge, Material, Kosten':'Production orders, material, cost',de?'Bestand und Rückmeldung':'Stock and confirmation'],false)}
+   ${box(150,180,460,120,'Shopfloor Cockpit · MES-light',[de?'BDE: Gründe, Ausschuss · MDE: Lauf/Stillstand':'BDE: reasons, scrap · MDE: run/stop',de?'OEE, Pareto, Maßnahmen, Schichtbericht':'OEE, Pareto, actions, shift report',de?'Tablet an der Maschine, offline-fähig':'Tablet at the machine, works offline'],true)}
+   ${box(40,390,300,100,de?'Maschinen · SPS / Sensor':'Machines · PLC / sensor',[de?'Presse 1–3: Lauf, Stillstand, Zähler':'Press 1–3: run, stop, counter',de?'heute: Simulation':'today: simulation'],false)}
+   ${box(420,390,300,100,de?'Bediener':'Operator',[de?'QR scannen, Grund antippen':'Scan QR, tap reason',de?'unter 1 Minute je Meldung':'under 1 minute per entry'],false)}
+   ${arr(560,110,520,178,de?'Aufträge (Import)':'Orders (import)',548,150)}
+   ${arr(470,180,500,112,de?'Rückmeldung (Export)':'Confirmation (export)',476,140,'end')}
+   ${arr(300,180,220,112,de?'Excel-Export':'Excel export',246,152,'end')}
+   ${arr(190,390,250,302,'OPC UA / MQTT',204,354,'end')}
+   ${arr(570,390,510,302,'BDE',552,350)}
+  </svg>`;
+  return `<section class="card"><h2>${esc(t('conTitle'))}</h2><p class="muted">${esc(t('conHint'))}</p><div class="diagram">${svg}</div></section>
+  <div class="grid2"><section class="card"><h2>${esc(t('mapTitle'))}</h2><div class="tw"><table><tbody>${t('map').map(([a,b])=>`<tr><td>${esc(a)}</td><td><b>${esc(b)}</b></td></tr>`).join('')}</tbody></table></div></section>
+  <section class="card"><h2>${esc(t('realTitle'))}</h2><ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">${t('real').map(s=>`<li>${esc(s)}</li>`).join('')}</ul></section></div>`;
+};
+
+/* ---------- setup ---------- */
+function appUrl(m){try{const u=new URL(location.href);u.search='';u.hash='';u.searchParams.set('m',m);return u.toString();}catch(e){return 'm='+m;}}
+VIEWS.set=()=>`<section class="card"><h2>${esc(t('setPlant'))}</h2><div class="row" style="align-items:flex-end">
+   <label class="f" style="flex:3 1 240px">${esc(t('plantName'))}<input id="s-plant" value="${esc(S.plant)}" data-act="setPlant"></label>
+   <label class="f" style="flex:1 1 120px">${esc(t('targetOee'))}<input id="s-target" type="number" min="0" max="100" value="${S.target}" data-act="setTarget"></label></div>
+   <p class="small muted">${esc(t('offline'))}</p></section>
+  <section class="card"><h2>${esc(t('machinesT'))}</h2><div class="tw"><table><thead><tr><th>ID</th><th>${esc(t('name'))}</th><th>${esc(t('rate'))}</th><th></th></tr></thead><tbody>
+   ${S.machines.map((m,i)=>`<tr><td><i class="swatch" style="background:${mColor(m.id)}"></i> <b>${esc(m.id)}</b></td><td><input id="m-name-${i}" value="${esc(m.name)}" data-act="mName" data-i="${i}"></td><td><input id="m-rate-${i}" type="number" min="1" value="${m.rate}" data-act="mRate" data-i="${i}" style="max-width:110px"></td><td>${S.machines.length>1?`<button class="btn sm" data-act="delMachine" data-i="${i}">${esc(t('undo'))}</button>`:''}</td></tr>`).join('')}</tbody></table></div>
+   <div class="row"><button class="btn" data-act="addMachine" ${S.machines.length>=8?'disabled':''}>${esc(t('addMachine'))}</button></div></section>
+  <div class="grid2">
+   <section class="card"><h2>${esc(t('stopReasons'))}</h2><div class="row">${S.stopReasons.map(r=>`<span class="pill ${r.planned?'plan':'bad'}">${esc(lbl(r))}${r.planned?' · '+esc(t('plannedFlag')):''}</span>`).join('')}</div>
+    <div class="row" style="align-items:flex-end"><label class="f" style="flex:1 1 180px">${esc(t('name'))}<input id="r-new"></label><label class="toggle small"><input type="checkbox" id="r-planned"> ${esc(t('plannedFlag'))}</label><button class="btn sm" data-act="addReason">${esc(t('addReason'))}</button></div></section>
+   <section class="card"><h2>${esc(t('scrapReasons'))}</h2><div class="row">${S.scrapReasons.map(r=>`<span class="pill warn">${esc(lbl(r))}</span>`).join('')}</div>
+    <div class="row" style="align-items:flex-end"><label class="f" style="flex:1 1 180px">${esc(t('name'))}<input id="sr-new"></label><button class="btn sm" data-act="addScrapReason">${esc(t('addReason'))}</button></div></section>
+  </div>
+  <section class="card"><div class="card-head"><h2>${esc(t('labels'))}</h2>${inFrame?'':`<button class="btn sm noprint" data-act="print">${esc(t('print'))}</button>`}</div><p class="small muted">${esc(t('labelsHint'))}</p>
+   <div class="labels">${S.machines.map(m=>`<div class="qlabel"><div class="q" data-qr="${esc(appUrl(m.id))}"></div><b>${esc(m.id)} · ${esc(m.name)}</b><small>${esc(appUrl(m.id))}</small></div>`).join('')}</div></section>
+  <section class="card noprint"><h2>${esc(t('demo'))}</h2>
+   ${UI.confirm?`<div class="confirm"><span>${esc(t('sure'))}</span><button class="btn sm danger" data-act="confirmYes">${esc(t('yes'))}</button><button class="btn sm" data-act="confirmNo">${esc(t('no'))}</button></div>`:''}
+   <div class="row"><button class="btn" data-act="askReset">${esc(t('resetDemo'))}</button><button class="btn danger" data-act="askClear">${esc(t('clearAll'))}</button></div></section>`;
+
+/* ================= actions / events ================= */
+function csvOf(rows){if(!rows.length)return '';const h=Object.keys(rows[0]);const q=v=>{v=v==null?'':String(v);return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};return '﻿'+[h.join(';'),...rows.map(r=>h.map(k=>q(r[k])).join(';'))].join('\r\n');}
+const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9äöüß]+/g,' ').trim();
+const COLS={no:['auftrag','fertigungsauftrag','auftragsnummer','order','order no','order number','production order','aufnr'],mat:['materialkurztext','materialbezeichnung','bezeichnung','material description','description','material'],qty:['menge','sollmenge','gesamtmenge','auftragsmenge','qty','quantity','planned qty','order quantity'],m:['maschine','arbeitsplatz','presse','anlage','machine','work center','workcenter','resource'],due:['termin','endtermin','ecktermin ende','liefertermin','due','due date','finish date','end date']};
+function importRows(rows){
+  if(!rows.length)return 0;
+  const keys=Object.keys(rows[0]);const find=c=>{for(const x of COLS[c]){const k=keys.find(k=>norm(k)===x);if(k)return k;}for(const x of COLS[c]){const k=keys.find(k=>norm(k).startsWith(x));if(k)return k;}return null;};
+  const kNo=find('no'),kQty=find('qty');if(!kNo||!kQty)return -1;
+  const kMat=find('mat'),kM=find('m'),kDue=find('due');let n=0;
+  for(const r of rows){const no=String(r[kNo]||'').trim();const qty=Math.round(Number(String(r[kQty]).replace(/\./g,'').replace(',','.'))||Number(r[kQty])||0);if(!no||!qty)continue;
+    let due=kDue?r[kDue]:'';if(typeof due==='number')due=ymd(Math.round((due-25569)*DAY)+new Date().getTimezoneOffset()*MIN);else if(due instanceof Date)due=ymd(due.getTime());else if(typeof due==='string'){const m1=due.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);if(m1)due=m1[3]+'-'+pad(m1[2])+'-'+pad(m1[1]);}else due='';
+    let mach=kM?String(r[kM]||'').trim():'';if(mach&&!S.machines.some(x=>x.id===mach)){const hit=S.machines.find(x=>norm(x.name).includes(norm(mach))||norm(mach).includes(x.id.toLowerCase()));mach=hit?hit.id:mach;}
+    const ex=ORD(no);const o={no,material:kMat?String(r[kMat]||''):'',qty,machine:mach||null,due:due||'',status:ex?ex.status:'planned'};
+    if(ex)Object.assign(ex,o);else S.orders.push(o);n++;}
+  return n;
+}
+async function readFile(f){const buf=await f.arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:true});const ws=wb.Sheets[wb.SheetNames[0]];return XLSX.utils.sheet_to_json(ws,{defval:'',raw:true});}
+
+document.addEventListener('click',e=>{
+  const lb=e.target.closest('[data-lang]');if(lb){LANG=lb.dataset.lang;S.lang=LANG;save();try{localStorage.setItem(KEY+'-lang',LANG);}catch(x){}render();return;}
+  const tb=e.target.closest('[data-tab]');if(tb){UI.tab=tb.dataset.tab;UI.stopFor=null;UI.confirm=null;saveUI();render();window.scrollTo(0,0);return;}
+  const b=e.target.closest('[data-act]');if(!b||b.tagName==='SELECT'||(b.tagName==='INPUT'&&b.type!=='button'))return;
+  const act=b.dataset.act,now=Date.now();
+  switch(act){
+    case 'pickM':UI.m=b.dataset.m;UI.stopFor=null;saveUI();render();break;
+    case 'scan':openScanner();break;
+    case 'toggleStopPick':UI.stopFor=UI.stopFor==='new'?null:'new';render();break;
+    case 'beginStop':{const os=openStop(UI.m);if(!os)S.stops.push({id:uid(),m:UI.m,start:now,end:null,reason:b.dataset.r,src:'BDE',order:S.active[UI.m]||null});UI.stopFor=null;save();toast(t('booked'));render();break;}
+    case 'endStop':{const os=openStop(UI.m);if(os)os.end=now;save();render();break;}
+    case 'setReasonOpen':case 'assign':{const x=S.stops.find(s=>s.id===b.dataset.id);if(x){x.reason=b.dataset.r;if(act==='assign')UI.stopFor=null;save();toast(t('booked'));render();}break;}
+    case 'assignOpen':UI.stopFor=UI.stopFor===b.dataset.id?null:b.dataset.id;render();break;
+    case 'delStop':S.stops=S.stops.filter(x=>x.id!==b.dataset.id);save();render();break;
+    case 'delCount':S.counts=S.counts.filter(x=>x.id!==b.dataset.id);save();render();break;
+    case 'bookQty':{const g=Math.max(0,Math.round(+($('#q-good')||{}).value||0)),sc=Math.max(0,Math.round(+$('#q-scrap').value||0));if(!g&&!sc){toast('0');break;}
+      S.counts.push({id:uid(),m:UI.m,order:S.active[UI.m]||null,ts:now,qty:g+sc,scrap:sc,reason:sc?$('#q-reason').value:null,src:'BDE'});
+      // when the machine counter (MDE) counts pieces, a scrap report must not add pieces again
+      if(SIM[UI.m]){S.counts[S.counts.length-1].qty=0;}
+      const o=ORD(S.active[UI.m]);if(o&&orderStats(o.no).good>=o.qty){o.status='done';}
+      save();toast(t('booked'));render();break;}
+    case 'range':UI.range=b.dataset.v;saveUI();render();break;
+    case 'dm':UI.dm=b.dataset.v;saveUI();render();break;
+    case 'prefillAct':{const mid=UI.dm==='all'?(()=>{const by={};S.stops.filter(x=>x.reason===b.dataset.r).forEach(x=>by[x.m]=(by[x.m]||0)+((x.end||now)-x.start));return Object.entries(by).sort((p,q)=>q[1]-p[1])[0]?.[0]||'';})():UI.dm;
+      UI.actPrefill={r:b.dataset.r,m:mid,title:t('actPrefill',{r:lbl(R(b.dataset.r)),m:mid||t('all')})};UI.tab='act';saveUI();render();window.scrollTo(0,0);break;}
+    case 'shShift':UI.shShift=b.dataset.v;render();break;
+    case 'shM':UI.shM=b.dataset.v;render();break;
+    case 'print':window.print();break;
+    case 'saveNote':{const tx=$('#note-text').value.trim();if(!tx)break;S.notes.push({id:uid(),date:UI.shDate,shift:UI.shShift,m:UI.shM==='all'?null:UI.shM,text:tx,author:$('#note-author').value.trim()||'–',ts:now,ack:null});save();toast(t('noteSaved'));render();break;}
+    case 'ack':{const n=S.notes.find(x=>x.id===b.dataset.id);const by=($('#ack-'+b.dataset.id)||{}).value||'';if(n&&by.trim()){n.ack={by:by.trim(),ts:now};save();render();}break;}
+    case 'addAct':{const title=$('#a-title').value.trim();if(!title)break;S.actions.push({id:uid(),title,m:$('#a-m').value||null,reason:$('#a-reason').value||null,owner:$('#a-owner').value.trim(),due:$('#a-due').value,status:'open',created:now});UI.actPrefill=null;save();render();break;}
+    case 'delAct':S.actions=S.actions.filter(a=>a.id!==b.dataset.id);save();render();break;
+    case 'sampleCsv':{const rows=[['Fertigungsauftrag','Material','Materialkurztext','Sollmenge','Arbeitsplatz','Endtermin'],['1000440','AL-6060-T66-RR40','EN AW-6060 T66 · Rechteckrohr 40×20×2','1800','P1',fmtDe(Date.now()+5*DAY)],['1000441','AL-6082-T6-KK85','EN AW-6082 T6 · Kühlkörper KK-85','1200','P2',fmtDe(Date.now()+8*DAY)],['1000442','AL-6082-T6-SP120','EN AW-6082 T6 · Strukturprofil SP-120','600','P3',fmtDe(Date.now()+10*DAY)]];
+      download('auftraege_beispiel.csv',new Blob(['﻿'+rows.map(r=>r.join(';')).join('\r\n')],{type:'text/csv'}));break;}
+    case 'addOrder':{const no=$('#o-no').value.trim(),qty=Math.round(+$('#o-qty').value||0);if(!no||!qty)break;if(ORD(no))Object.assign(ORD(no),{material:$('#o-mat').value,qty,machine:$('#o-m').value,due:$('#o-due').value});else S.orders.push({no,material:$('#o-mat').value,qty,machine:$('#o-m').value,due:$('#o-due').value,status:'planned'});save();render();break;}
+    case 'xlsx':{const T=tables();const wb=XLSX.utils.book_new();for(const k in T)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(T[k].length?T[k]:[{}]),k);const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});download('shopfloor_cockpit_'+stamp()+'.xlsx',new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));break;}
+    case 'csv':{const T=tables();download(b.dataset.k+'_'+stamp()+'.csv',new Blob([csvOf(T[b.dataset.k])],{type:'text/csv'}));break;}
+    case 'backup':download('shopfloor_cockpit_backup_'+stamp()+'.json',new Blob([JSON.stringify(S)],{type:'application/json'}));break;
+    case 'addMachine':{let i=S.machines.length+1;while(M('P'+i))i++;S.machines.push({id:'P'+i,name:(LANG==='de'?'Presse ':'Press ')+i,rate:40});save();render();break;}
+    case 'delMachine':{const m=S.machines[+b.dataset.i];if(m){simStop(m.id);S.machines.splice(+b.dataset.i,1);if(UI.m===m.id)UI.m=S.machines[0].id;if(UI.dm===m.id)UI.dm='all';save();render();}break;}
+    case 'addReason':{const v=$('#r-new').value.trim();if(!v)break;S.stopReasons.push({id:'r_'+uid(),de:v,en:v,planned:$('#r-planned').checked});save();render();break;}
+    case 'addScrapReason':{const v=$('#sr-new').value.trim();if(!v)break;S.scrapReasons.push({id:'s_'+uid(),de:v,en:v});save();render();break;}
+    case 'askReset':UI.confirm='reset';render();break;
+    case 'askClear':UI.confirm='clear';render();break;
+    case 'confirmNo':UI.confirm=null;render();break;
+    case 'confirmYes':{for(const k in SIM)delete SIM[k];if(UI.confirm==='reset'){S=seed(LANG);}else{const keep={machines:S.machines,stopReasons:S.stopReasons,scrapReasons:S.scrapReasons,plant:S.plant,target:S.target};S={v:1,lang:LANG,...keep,orders:[],active:{},stops:[],counts:[],notes:[],actions:[],seededAt:Date.now()};}
+      UI.confirm=null;UI.m=S.machines[0].id;UI.dm='all';save(true);toast(t('done'));render();break;}
+    case 'closeOverlay':closeScanner();break;
+    case 'scanPick':closeScanner();UI.m=b.dataset.m;UI.tab='op';saveUI();render();toast(t('scanned',{m:UI.m}));break;
+  }
+});
+const fmtDe=ts=>{const d=new Date(ts);return pad(d.getDate())+'.'+pad(d.getMonth()+1)+'.'+d.getFullYear();};
+document.addEventListener('change',async e=>{
+  const el=e.target,act=el.dataset&&el.dataset.act;if(!act)return;
+  switch(act){
+    case 'setOrder':S.active[UI.m]=el.value||undefined;const o=ORD(el.value);if(o&&o.status==='planned')o.status='running';save();render();break;
+    case 'sim':if(el.checked){simStart(UI.m);}else simStop(UI.m);render();break;
+    case 'shDate':UI.shDate=el.value||UI.shDate;render();break;
+    case 'actStatus':{const a=S.actions.find(x=>x.id===el.dataset.id);if(a){a.status=el.value;save();render();}break;}
+    case 'setPlant':S.plant=el.value.trim()||S.plant;save();renderTabs();break;
+    case 'setTarget':S.target=Math.max(0,Math.min(100,Math.round(+el.value||0)));save();break;
+    case 'mName':S.machines[+el.dataset.i].name=el.value.trim()||S.machines[+el.dataset.i].name;save();break;
+    case 'mRate':S.machines[+el.dataset.i].rate=Math.max(1,+el.value||1);save();break;
+    case 'importFile':{const f=el.files[0];if(!f)break;try{const rows=await readFile(f);const n=importRows(rows);if(n<0)toast(t('importFail'));else{save();toast(t('imported',{n}));render();}}catch(x){toast(t('importFail'));}el.value='';break;}
+    case 'restore':{const f=el.files[0];if(!f)break;try{const d=JSON.parse(await f.text());if(d&&d.v&&Array.isArray(d.machines)){for(const k in SIM)delete SIM[k];S=d;LANG=S.lang||LANG;save(true);toast(t('done'));render();}}catch(x){toast('JSON?');}el.value='';break;}
+  }
+});
+
+/* ================= QR scanner ================= */
+let scanStream=null,scanRaf=null;
+function closeScanner(){if(scanRaf)cancelAnimationFrame(scanRaf);scanRaf=null;if(scanStream){scanStream.getTracks().forEach(tr=>tr.stop());scanStream=null;}const ov=$('#overlay');ov.hidden=true;ov.innerHTML='';}
+function scanFallback(msg){$('#overlay').querySelector('.sheet .body').innerHTML=`<p>${esc(msg)}</p><div class="mchips">${S.machines.map(m=>`<button class="mchip" data-act="scanPick" data-m="${m.id}"><b>${esc(m.id)}</b><span class="muted">${esc(m.name)}</span></button>`).join('')}</div>`;}
+async function openScanner(){
+  const ov=$('#overlay');ov.hidden=false;
+  ov.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(t('scan'))}"><div class="card-head"><h2>${esc(t('scan'))}</h2><button class="btn sm" data-act="closeOverlay">${esc(t('close'))}</button></div><div class="body"><p class="small muted">${esc(t('scanHint'))}</p><video playsinline muted></video><canvas hidden></canvas></div></div>`;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){scanFallback(t('camFail'));return;}
+  try{scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});}catch(x){scanFallback(t('camFail'));return;}
+  const v=ov.querySelector('video'),c=ov.querySelector('canvas'),ctx=c.getContext('2d',{willReadFrequently:true});v.srcObject=scanStream;try{await v.play();}catch(x){}
+  const loop=()=>{if(!scanStream)return;if(v.readyState>=2){c.width=v.videoWidth;c.height=v.videoHeight;ctx.drawImage(v,0,0);const img=ctx.getImageData(0,0,c.width,c.height);const code=window.jsQR?jsQR(img.data,img.width,img.height,{inversionAttempts:'dontInvert'}):null;
+      if(code&&code.data){let mid=null;try{mid=new URL(code.data).searchParams.get('m');}catch(x){mid=code.data.trim();}if(mid&&M(mid)){closeScanner();UI.m=mid;UI.tab='op';saveUI();render();toast(t('scanned',{m:mid}));return;}}}
+    scanRaf=requestAnimationFrame(loop);};
+  loop();
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#overlay').hidden)closeScanner();});
+window.addEventListener('beforeunload',()=>{for(const mid in SIM)flushCount(mid,SIM[mid].clock);save(true);});
+
+render();
+// refresh durations every 20 s even without the simulator
+setInterval(()=>{if(!Object.keys(SIM).length)softRender();},20000);
+try{if('serviceWorker' in navigator&&!inFrame&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}
+</script>
+
+</body>
+</html>
